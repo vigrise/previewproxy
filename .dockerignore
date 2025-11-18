@@ -1,0 +1,10 @@
+docs/
+target/
+deploy/
+tests/
+scripts/
+migrations/
+.env
+.dockerignore
+Dockerfile
+docker-compose.yml
