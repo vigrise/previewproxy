@@ -1,0 +1,15 @@
+#[cfg(test)]
+pub fn tiny_png_bytes() -> Vec<u8> {
+  use base64::{engine::general_purpose::STANDARD, Engine};
+  STANDARD.decode(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC"
+    ).unwrap()
+}
+
+#[cfg(test)]
+pub fn tiny_jpeg_bytes() -> Vec<u8> {
+  use base64::{engine::general_purpose::STANDARD, Engine};
+  STANDARD.decode(
+        "/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/2wBDAQkJCQwLDBgNDRgyIRwhMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjL/wAARCAABAAEDASIAAhEBAxEB/8QAFgABAQEAAAAAAAAAAAAAAAAABgUE/8QAIhAAAQMEAgMAAAAAAAAAAAAAAQIDBAUREiExQf/EABQBAQAAAAAAAAAAAAAAAAAAAAD/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCn2pRqb2/cFPCdSfXFGpIaMHOVHsfmBmMAAA//2Q=="
+    ).unwrap()
+}
