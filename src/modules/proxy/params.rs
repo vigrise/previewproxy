@@ -1,0 +1,484 @@
+use crate::common::errors::ProxyError;
+
+#[derive(Debug, Clone, Default)]
+pub struct TransformParams {
+  pub w: Option<u32>,
+  pub h: Option<u32>,
+  pub fit: Option<String>,
+  pub format: Option<String>,
+  pub q: Option<u32>,
+  pub rotate: Option<u32>,
+  pub flip: Option<String>,
+  pub blur: Option<f32>,
+  pub grayscale: Option<bool>,
+  pub bright: Option<i32>,
+  pub contrast: Option<i32>,
+  pub wm: Option<String>,
+  pub sig: Option<String>,
+}
+
+impl TransformParams {
+  /// Parse from path wildcard string (everything after the leading slash in /*path).
+  /// Splits at the last /https:// or /http:// to find image URL.
+  pub fn from_path(path: &str) -> Result<(Self, String), ProxyError> {
+    // Find last occurrence of each delimiter, in priority order
+    let https_pos = path.rfind("/https://");
+    let http_pos = path.rfind("/http://");
+    let s3_pos = path.rfind("/s3:/");
+    let local_pos = path.rfind("/local:/");
+    // Also handle percent-encoded slash in local:/ delimiter
+    let local_pct_pos = path
+      .rfind("/local:%2F")
+      .or_else(|| path.rfind("/local:%2f"));
+
+    // Pick the rightmost match across all delimiters
+    let split_pos = [https_pos, http_pos, s3_pos, local_pos, local_pct_pos]
+      .into_iter()
+      .flatten()
+      .max();
+
+    let (opts_str, url) = if let Some(pos) = split_pos {
+      (&path[..pos], &path[pos + 1..])
+    } else if path.starts_with("https://")
+      || path.starts_with("http://")
+      || path.starts_with("s3:/")
+      || path.starts_with("local:/")
+      || path.starts_with("local:%2F")
+      || path.starts_with("local:%2f")
+    {
+      ("", path)
+    } else {
+      return Err(ProxyError::InvalidParams(
+        "No image URL found in path".to_string(),
+      ));
+    };
+
+    let url = urlencoding::decode(url)
+      .unwrap_or_else(|_| url.into())
+      .to_string();
+    let params = parse_options(opts_str.trim_matches('/'))?;
+    Ok((params, url))
+  }
+
+  /// Merge other's Some values into self (other takes precedence).
+  pub fn merge_from(&mut self, other: TransformParams) {
+    if other.w.is_some() {
+      self.w = other.w;
+    }
+    if other.h.is_some() {
+      self.h = other.h;
+    }
+    if other.fit.is_some() {
+      self.fit = other.fit;
+    }
+    if other.format.is_some() {
+      self.format = other.format;
+    }
+    if other.q.is_some() {
+      self.q = other.q;
+    }
+    if other.rotate.is_some() {
+      self.rotate = other.rotate;
+    }
+    if other.flip.is_some() {
+      self.flip = other.flip;
+    }
+    if other.blur.is_some() {
+      self.blur = other.blur;
+    }
+    if other.grayscale.is_some() {
+      self.grayscale = other.grayscale;
+    }
+    if other.bright.is_some() {
+      self.bright = other.bright;
+    }
+    if other.contrast.is_some() {
+      self.contrast = other.contrast;
+    }
+    if other.wm.is_some() {
+      self.wm = other.wm;
+    }
+    if other.sig.is_some() {
+      self.sig = other.sig;
+    }
+  }
+
+  /// Canonical string for HMAC and cache key (excludes sig).
+  /// Alphabetically sorted by query-style key name.
+  pub fn canonical_string(&self, url: &str) -> String {
+    let mut parts: Vec<String> = Vec::new();
+    if let Some(v) = &self.blur {
+      parts.push(format!("blur={v}"));
+    }
+    if let Some(v) = &self.bright {
+      parts.push(format!("bright={v}"));
+    }
+    if let Some(v) = &self.contrast {
+      parts.push(format!("contrast={v}"));
+    }
+    if let Some(v) = &self.fit {
+      parts.push(format!("fit={v}"));
+    }
+    if let Some(v) = &self.flip {
+      parts.push(format!("flip={v}"));
+    }
+    if let Some(v) = &self.format {
+      parts.push(format!("format={v}"));
+    }
+    if let Some(v) = &self.grayscale {
+      parts.push(format!("grayscale={}", if *v { 1 } else { 0 }));
+    }
+    if let Some(v) = &self.h {
+      parts.push(format!("h={v}"));
+    }
+    if let Some(v) = &self.q {
+      parts.push(format!("q={v}"));
+    }
+    if let Some(v) = &self.rotate {
+      parts.push(format!("rotate={v}"));
+    }
+    if let Some(v) = &self.w {
+      parts.push(format!("w={v}"));
+    }
+    if let Some(v) = &self.wm {
+      parts.push(format!("wm={v}"));
+    }
+    format!("{}:{}", parts.join("&"), url)
+  }
+
+  /// Returns true if any transform option is set.
+  pub fn has_transforms(&self) -> bool {
+    self.w.is_some()
+      || self.h.is_some()
+      || self.fit.is_some()
+      || self.format.is_some()
+      || self.q.is_some()
+      || self.rotate.is_some()
+      || self.flip.is_some()
+      || self.blur.is_some()
+      || self.grayscale.is_some()
+      || self.bright.is_some()
+      || self.contrast.is_some()
+      || self.wm.is_some()
+  }
+}
+
+const MAX_DIMENSION: u32 = 8192;
+const MAX_BLUR: f32 = 100.0;
+
+fn parse_options(opts: &str) -> Result<TransformParams, ProxyError> {
+  let mut p = TransformParams::default();
+  if opts.is_empty() {
+    return Ok(p);
+  }
+  for token in opts.split(',') {
+    let token = token.trim();
+    if token.is_empty() {
+      continue;
+    }
+    // WxH
+    if let Some((w_str, h_str)) = token.split_once('x') {
+      if let (Ok(w), Ok(h)) = (w_str.parse::<u32>(), h_str.parse::<u32>()) {
+        p.w = Some(w);
+        p.h = Some(h);
+        continue;
+      }
+    }
+    // q80
+    if let Some(rest) = token.strip_prefix('q') {
+      if let Ok(v) = rest.parse::<u32>() {
+        p.q = Some(v);
+        continue;
+      }
+    }
+    // r90 r180 r270
+    if let Some(rest) = token.strip_prefix('r') {
+      if let Ok(v) = rest.parse::<u32>() {
+        p.rotate = Some(v);
+        continue;
+      }
+    }
+    // blur:5
+    if let Some(val) = token.strip_prefix("blur:") {
+      if let Ok(v) = val.parse::<f32>() {
+        p.blur = Some(v);
+        continue;
+      }
+    }
+    // bright:10
+    if let Some(val) = token.strip_prefix("bright:") {
+      if let Ok(v) = val.parse::<i32>() {
+        p.bright = Some(v);
+        continue;
+      }
+    }
+    // contrast:5
+    if let Some(val) = token.strip_prefix("contrast:") {
+      if let Ok(v) = val.parse::<i32>() {
+        p.contrast = Some(v);
+        continue;
+      }
+    }
+    // wm:https://...
+    if let Some(val) = token.strip_prefix("wm:") {
+      p.wm = Some(val.to_string());
+      continue;
+    }
+    // sig:hash
+    if let Some(val) = token.strip_prefix("sig:") {
+      p.sig = Some(val.to_string());
+      continue;
+    }
+    match token {
+      "contain" | "cover" | "crop" => {
+        p.fit = Some(token.to_string());
+      }
+      "webp" | "jpeg" | "png" | "avif" => {
+        p.format = Some(token.to_string());
+      }
+      "fliph" => {
+        p.flip = Some("h".to_string());
+      }
+      "flipv" => {
+        p.flip = Some("v".to_string());
+      }
+      "grayscale" => {
+        p.grayscale = Some(true);
+      }
+      _ => {
+        return Err(ProxyError::InvalidParams(format!(
+          "Unknown option: {token}"
+        )));
+      }
+    }
+  }
+  p.w = p.w.map(|v| v.min(MAX_DIMENSION));
+  p.h = p.h.map(|v| v.min(MAX_DIMENSION));
+  p.blur = p.blur.map(|v| v.clamp(0.0, MAX_BLUR));
+  Ok(p)
+}
+
+/// Parse from query string HashMap into TransformParams.
+pub fn from_query(
+  query: &std::collections::HashMap<String, String>,
+) -> Result<TransformParams, ProxyError> {
+  let mut p = TransformParams::default();
+  macro_rules! parse_field {
+    ($field:ident, $key:expr, $typ:ty) => {
+      if let Some(v) = query.get($key) {
+        p.$field = Some(
+          v.parse::<$typ>()
+            .map_err(|_| ProxyError::InvalidParams(format!("invalid {}", $key)))?,
+        );
+      }
+    };
+  }
+  parse_field!(w, "w", u32);
+  parse_field!(h, "h", u32);
+  parse_field!(q, "q", u32);
+  parse_field!(rotate, "rotate", u32);
+  parse_field!(blur, "blur", f32);
+  parse_field!(bright, "bright", i32);
+  parse_field!(contrast, "contrast", i32);
+  if let Some(fit) = query.get("fit") {
+    match fit.as_str() {
+      "contain" | "cover" | "crop" => p.fit = Some(fit.clone()),
+      _ => return Err(ProxyError::InvalidParams(format!("invalid fit: {fit}"))),
+    }
+  }
+  if let Some(format) = query.get("format") {
+    match format.as_str() {
+      "jpeg" | "png" | "webp" | "avif" => p.format = Some(format.clone()),
+      _ => {
+        return Err(ProxyError::InvalidParams(format!(
+          "invalid format: {format}"
+        )))
+      }
+    }
+  }
+  if let Some(flip) = query.get("flip") {
+    match flip.as_str() {
+      "h" | "v" => p.flip = Some(flip.clone()),
+      _ => return Err(ProxyError::InvalidParams(format!("invalid flip: {flip}"))),
+    }
+  }
+  if let Some(v) = query.get("wm") {
+    p.wm = Some(v.clone());
+  }
+  if let Some(v) = query.get("sig") {
+    p.sig = Some(v.clone());
+  }
+  if let Some(v) = query.get("grayscale") {
+    p.grayscale = Some(v == "1" || v.eq_ignore_ascii_case("true"));
+  }
+  p.w = p.w.map(|v| v.min(MAX_DIMENSION));
+  p.h = p.h.map(|v| v.min(MAX_DIMENSION));
+  p.blur = p.blur.map(|v| v.clamp(0.0, MAX_BLUR));
+  Ok(p)
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[test]
+  fn test_path_parse_basic() {
+    let (params, url) =
+      TransformParams::from_path("300x200,webp,q80/https://example.com/img.jpg").unwrap();
+    assert_eq!(params.w, Some(300));
+    assert_eq!(params.h, Some(200));
+    assert_eq!(params.format, Some("webp".to_string()));
+    assert_eq!(params.q, Some(80));
+    assert_eq!(url, "https://example.com/img.jpg");
+  }
+
+  #[test]
+  fn test_path_no_options() {
+    let (params, url) = TransformParams::from_path("https://example.com/img.jpg").unwrap();
+    assert_eq!(params.w, None);
+    assert_eq!(params.format, None);
+    assert_eq!(url, "https://example.com/img.jpg");
+  }
+
+  #[test]
+  fn test_watermark_url_split_uses_last_http() {
+    // wm URL contains https:// — must split at the LAST /https://
+    let (params, url) =
+      TransformParams::from_path("wm:https://logo.png/https://example.com/img.jpg").unwrap();
+    assert_eq!(params.wm, Some("https://logo.png".to_string()));
+    assert_eq!(url, "https://example.com/img.jpg");
+  }
+
+  #[test]
+  fn test_canonical_string_sorted() {
+    let params = TransformParams {
+      w: Some(300),
+      format: Some("webp".to_string()),
+      ..Default::default()
+    };
+    let s = params.canonical_string("https://example.com/img.jpg");
+    assert_eq!(s, "format=webp&w=300:https://example.com/img.jpg");
+  }
+
+  #[test]
+  fn test_canonical_string_excludes_sig() {
+    let params = TransformParams {
+      w: Some(100),
+      sig: Some("abc123".to_string()),
+      ..Default::default()
+    };
+    let s = params.canonical_string("https://example.com/img.jpg");
+    assert_eq!(s, "w=100:https://example.com/img.jpg");
+  }
+
+  #[test]
+  fn test_query_merge_overrides_path() {
+    let mut path_params = TransformParams {
+      w: Some(100),
+      h: Some(200),
+      ..Default::default()
+    };
+    let query_params = TransformParams {
+      w: Some(300),
+      ..Default::default()
+    };
+    path_params.merge_from(query_params);
+    assert_eq!(path_params.w, Some(300)); // query wins
+    assert_eq!(path_params.h, Some(200)); // path kept
+  }
+
+  #[test]
+  fn test_grayscale_canonical() {
+    let params = TransformParams {
+      grayscale: Some(true),
+      ..Default::default()
+    };
+    let s = params.canonical_string("https://example.com/img.jpg");
+    assert_eq!(s, "grayscale=1:https://example.com/img.jpg");
+  }
+
+  #[test]
+  fn test_has_transforms_true() {
+    let params = TransformParams {
+      w: Some(100),
+      ..Default::default()
+    };
+    assert!(params.has_transforms());
+  }
+
+  #[test]
+  fn test_has_transforms_false() {
+    let params = TransformParams::default();
+    assert!(!params.has_transforms());
+  }
+
+  #[test]
+  fn test_fliph_parsed() {
+    let (params, _) = TransformParams::from_path("fliph/https://example.com/img.jpg").unwrap();
+    assert_eq!(params.flip, Some("h".to_string()));
+  }
+
+  #[test]
+  fn test_blur_parsed() {
+    let (params, _) = TransformParams::from_path("blur:3.5/https://example.com/img.jpg").unwrap();
+    assert_eq!(params.blur, Some(3.5));
+  }
+
+  #[test]
+  fn test_s3_no_options() {
+    let (params, url) = TransformParams::from_path("s3:/images/photo.jpg").unwrap();
+    assert_eq!(params.w, None);
+    assert_eq!(url, "s3:/images/photo.jpg");
+  }
+
+  #[test]
+  fn test_s3_with_options() {
+    let (params, url) = TransformParams::from_path("300x200,webp/s3:/images/photo.jpg").unwrap();
+    assert_eq!(params.w, Some(300));
+    assert_eq!(params.h, Some(200));
+    assert_eq!(params.format, Some("webp".to_string()));
+    assert_eq!(url, "s3:/images/photo.jpg");
+  }
+
+  #[test]
+  fn test_local_no_options() {
+    let (params, url) = TransformParams::from_path("local:/srv/img.png").unwrap();
+    assert_eq!(params.w, None);
+    assert_eq!(url, "local:/srv/img.png");
+  }
+
+  #[test]
+  fn test_local_percent_encoded_no_options() {
+    let (params, url) = TransformParams::from_path("local:%2Fsrv%2Fimg.png").unwrap();
+    assert_eq!(params.w, None);
+    assert_eq!(url, "local:/srv/img.png");
+  }
+
+  #[test]
+  fn test_local_percent_encoded_with_options() {
+    let (params, url) = TransformParams::from_path("300x200/local:%2Fsrv%2Fimg.png").unwrap();
+    assert_eq!(params.w, Some(300));
+    assert_eq!(params.h, Some(200));
+    assert_eq!(url, "local:/srv/img.png");
+  }
+
+  #[test]
+  fn test_watermark_s3_image_https() {
+    let (params, url) =
+      TransformParams::from_path("wm:s3:/overlay.png/https://example.com/img.jpg").unwrap();
+    assert_eq!(params.wm, Some("s3:/overlay.png".to_string()));
+    assert_eq!(url, "https://example.com/img.jpg");
+  }
+
+  #[test]
+  fn test_from_query() {
+    let mut map = std::collections::HashMap::new();
+    map.insert("w".to_string(), "400".to_string());
+    map.insert("format".to_string(), "webp".to_string());
+    map.insert("grayscale".to_string(), "1".to_string());
+    let params = from_query(&map).unwrap();
+    assert_eq!(params.w, Some(400));
+    assert_eq!(params.format, Some("webp".to_string()));
+    assert_eq!(params.grayscale, Some(true));
+  }
+}
