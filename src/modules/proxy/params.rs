@@ -11,6 +11,7 @@ pub struct TransformParams {
   pub flip: Option<String>,
   pub blur: Option<f32>,
   pub grayscale: Option<bool>,
+  pub t: Option<f32>,
   pub bright: Option<i32>,
   pub contrast: Option<i32>,
   pub wm: Option<String>,
@@ -89,6 +90,9 @@ impl TransformParams {
     if other.grayscale.is_some() {
       self.grayscale = other.grayscale;
     }
+    if other.t.is_some() {
+      self.t = other.t;
+    }
     if other.bright.is_some() {
       self.bright = other.bright;
     }
@@ -137,6 +141,9 @@ impl TransformParams {
     if let Some(v) = &self.rotate {
       parts.push(format!("rotate={v}"));
     }
+    if let Some(v) = &self.t {
+      parts.push(format!("t={v}"));
+    }
     if let Some(v) = &self.w {
       parts.push(format!("w={v}"));
     }
@@ -157,6 +164,7 @@ impl TransformParams {
       || self.flip.is_some()
       || self.blur.is_some()
       || self.grayscale.is_some()
+      || self.t.is_some()
       || self.bright.is_some()
       || self.contrast.is_some()
       || self.wm.is_some()
@@ -205,6 +213,13 @@ fn parse_options(opts: &str) -> Result<TransformParams, ProxyError> {
         continue;
       }
     }
+    // t:5.0
+    if let Some(val) = token.strip_prefix("t:") {
+      if let Ok(v) = val.parse::<f32>() {
+        p.t = Some(v.max(0.0));
+        continue;
+      }
+    }
     // bright:10
     if let Some(val) = token.strip_prefix("bright:") {
       if let Ok(v) = val.parse::<i32>() {
@@ -233,7 +248,8 @@ fn parse_options(opts: &str) -> Result<TransformParams, ProxyError> {
       "contain" | "cover" | "crop" => {
         p.fit = Some(token.to_string());
       }
-      "webp" | "jpeg" | "png" | "avif" => {
+      "webp" | "jpeg" | "png" | "avif" | "gif" | "bmp" | "tiff" | "ico"
+      | "jxl" => {
         p.format = Some(token.to_string());
       }
       "fliph" => {
@@ -288,7 +304,9 @@ pub fn from_query(
   }
   if let Some(format) = query.get("format") {
     match format.as_str() {
-      "jpeg" | "png" | "webp" | "avif" => p.format = Some(format.clone()),
+      "jpeg" | "png" | "webp" | "avif" | "gif" | "bmp" | "tiff" | "ico" | "jxl" => {
+        p.format = Some(format.clone())
+      }
       _ => {
         return Err(ProxyError::InvalidParams(format!(
           "invalid format: {format}"
@@ -310,6 +328,13 @@ pub fn from_query(
   }
   if let Some(v) = query.get("grayscale") {
     p.grayscale = Some(v == "1" || v.eq_ignore_ascii_case("true"));
+  }
+  if let Some(v) = query.get("t") {
+    p.t = Some(
+      v.parse::<f32>()
+        .map_err(|_| ProxyError::InvalidParams("invalid t".to_string()))?
+        .max(0.0),
+    );
   }
   p.w = p.w.map(|v| v.min(MAX_DIMENSION));
   p.h = p.h.map(|v| v.min(MAX_DIMENSION));
@@ -416,6 +441,85 @@ mod tests {
   fn test_fliph_parsed() {
     let (params, _) = TransformParams::from_path("fliph/https://example.com/img.jpg").unwrap();
     assert_eq!(params.flip, Some("h".to_string()));
+  }
+
+  #[test]
+  fn test_t_in_canonical_string() {
+    let params = TransformParams {
+      t: Some(5.0),
+      ..Default::default()
+    };
+    let s = params.canonical_string("https://example.com/v.mp4");
+    assert!(s.contains("t=5"), "canonical string must include t: {s}");
+  }
+
+  #[test]
+  fn test_has_transforms_t_only() {
+    let params = TransformParams {
+      t: Some(3.0),
+      ..Default::default()
+    };
+    assert!(params.has_transforms());
+  }
+
+  #[test]
+  fn test_format_gif_accepted() {
+    let mut map = std::collections::HashMap::new();
+    map.insert("format".to_string(), "gif".to_string());
+    let p = super::from_query(&map).unwrap();
+    assert_eq!(p.format, Some("gif".to_string()));
+  }
+
+  #[test]
+  fn test_format_avif_now_accepted() {
+    let mut map = std::collections::HashMap::new();
+    map.insert("format".to_string(), "avif".to_string());
+    let p = super::from_query(&map).unwrap();
+    assert_eq!(p.format, Some("avif".to_string()));
+  }
+
+  #[test]
+  fn test_format_jxl_accepted() {
+    let mut map = std::collections::HashMap::new();
+    map.insert("format".to_string(), "jxl".to_string());
+    let p = super::from_query(&map).unwrap();
+    assert_eq!(p.format, Some("jxl".to_string()));
+  }
+
+  #[test]
+  fn test_t_from_query() {
+    let mut map = std::collections::HashMap::new();
+    map.insert("t".to_string(), "2.5".to_string());
+    let p = super::from_query(&map).unwrap();
+    assert_eq!(p.t, Some(2.5));
+  }
+
+  #[test]
+  fn test_t_clamped_negative() {
+    let mut map = std::collections::HashMap::new();
+    map.insert("t".to_string(), "-1.0".to_string());
+    let p = super::from_query(&map).unwrap();
+    assert_eq!(p.t, Some(0.0));
+  }
+
+  #[test]
+  fn test_t_from_path() {
+    let (params, _) = TransformParams::from_path("t:5.0/https://example.com/v.mp4").unwrap();
+    assert_eq!(params.t, Some(5.0));
+  }
+
+  #[test]
+  fn test_t_merge_from() {
+    let mut base = TransformParams {
+      t: Some(1.0),
+      ..Default::default()
+    };
+    let other = TransformParams {
+      t: Some(9.0),
+      ..Default::default()
+    };
+    base.merge_from(other);
+    assert_eq!(base.t, Some(9.0));
   }
 
   #[test]

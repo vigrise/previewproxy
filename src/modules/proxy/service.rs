@@ -87,7 +87,7 @@ impl ProxyService {
 
     // 7. Fetch (Issue 4 fix: pass original error to guard)
     let fetch_result = self.fetcher.fetch(&image_url).await;
-    let (src_bytes, src_ct) = match fetch_result {
+    let (mut src_bytes, mut src_ct) = match fetch_result {
       Ok(v) => v,
       Err(e) => {
         guard.complete(Err(e.clone()));
@@ -95,8 +95,36 @@ impl ProxyService {
       }
     };
 
-    // 8. If has_transforms: run_pipeline(); else resolve_content_type()
-    let pipeline_result = if params.has_transforms() {
+    // 8. Video interception (extract first/seeked frame and continue as PNG)
+    let is_video = src_ct
+      .as_deref()
+      .map(|ct| ct.starts_with("video/"))
+      .unwrap_or_else(|| crate::modules::proxy::sources::video::is_video_magic(&src_bytes));
+
+    if is_video {
+      match crate::modules::proxy::sources::video::extract_frame(&src_bytes, params.t.unwrap_or(0.0)) {
+        Ok(frame) => match crate::modules::proxy::sources::video::frame_to_png_bytes(frame) {
+          Ok(png_bytes) => {
+            src_bytes = png_bytes;
+            src_ct = Some("image/png".to_string());
+          }
+          Err(e) => {
+            guard.complete(Err(e.clone()));
+            return Err(e);
+          }
+        },
+        Err(e) => {
+          guard.complete(Err(e.clone()));
+          return Err(e);
+        }
+      }
+    }
+
+    // 9. Force pipeline for PDF to rasterize first page even without transform flags.
+    let is_pdf = src_ct.as_deref() == Some("application/pdf") || (!is_video && src_bytes.starts_with(b"%PDF"));
+
+    // 10. If has_transforms or is_pdf: run_pipeline(); else resolve_content_type()
+    let pipeline_result = if params.has_transforms() || is_pdf {
       pipeline::run_pipeline(params, src_bytes, src_ct, self.fetcher.clone())
         .await
         .map(|(bytes, ct)| CacheEntry {
@@ -139,27 +167,13 @@ mod tests {
   use std::net::{Ipv4Addr, SocketAddr};
   use std::sync::Arc;
 
-  struct MockFetcher {
-    error: ProxyError,
-  }
-
-  #[async_trait::async_trait]
-  impl Fetchable for MockFetcher {
-    async fn fetch(&self, _url: &str) -> Result<(Vec<u8>, Option<String>), ProxyError> {
-      Err(self.error.clone())
-    }
-  }
-
-  fn make_service_with_allowlist(allowed_hosts: Vec<String>) -> ProxyService {
-    let fetcher: Arc<dyn Fetchable> = Arc::new(MockFetcher {
-      error: ProxyError::InvalidParams("source not configured".to_string()),
-    });
-    let cfg = Arc::new(Configuration {
+  fn make_test_configuration() -> Arc<Configuration> {
+    Arc::new(Configuration {
       env: crate::common::config::Environment::Development,
       listen_address: SocketAddr::from((Ipv4Addr::UNSPECIFIED, 8080)),
       app_port: 8080,
       hmac_key: None,
-      allowed_hosts: allowed_hosts.clone(),
+      allowed_hosts: vec![],
       fetch_timeout_secs: 10,
       max_source_bytes: 1_000_000,
       cache_memory_max_mb: 16,
@@ -176,7 +190,27 @@ mod tests {
       s3_endpoint: None,
       local_enabled: false,
       local_base_dir: None,
+    })
+  }
+
+  struct MockFetcher {
+    error: ProxyError,
+  }
+
+  #[async_trait::async_trait]
+  impl Fetchable for MockFetcher {
+    async fn fetch(&self, _url: &str) -> Result<(Vec<u8>, Option<String>), ProxyError> {
+      Err(self.error.clone())
+    }
+  }
+
+  fn make_service_with_allowlist(allowed_hosts: Vec<String>) -> ProxyService {
+    let fetcher: Arc<dyn Fetchable> = Arc::new(MockFetcher {
+      error: ProxyError::InvalidParams("source not configured".to_string()),
     });
+    let mut cfg = (*make_test_configuration()).clone();
+    cfg.allowed_hosts = allowed_hosts.clone();
+    let cfg = Arc::new(cfg);
     let cache = CacheManager::new(&cfg);
     ProxyService {
       fetcher,
@@ -216,6 +250,38 @@ mod tests {
     assert!(
       !matches!(result, Err(ProxyError::HostNotAllowed)),
       "expected local:/ watermark to bypass allowlist, but got HostNotAllowed"
+    );
+  }
+
+  #[tokio::test]
+  async fn test_video_content_type_triggers_video_decode_error() {
+    struct VideoMockFetcher;
+
+    #[async_trait::async_trait]
+    impl Fetchable for VideoMockFetcher {
+      async fn fetch(&self, _url: &str) -> Result<(Vec<u8>, Option<String>), ProxyError> {
+        let mut bytes = vec![0x00, 0x00, 0x00, 0x20];
+        bytes.extend_from_slice(b"ftyp");
+        bytes.extend(vec![0u8; 100]);
+        Ok((bytes, Some("video/mp4".to_string())))
+      }
+    }
+
+    let cfg = make_test_configuration();
+    let fetcher: Arc<dyn Fetchable> = Arc::new(VideoMockFetcher);
+    let cache = CacheManager::new(&cfg);
+    let svc = ProxyService {
+      fetcher,
+      cache,
+      allowlist: Allowlist::new(vec![]),
+      hmac_key: None,
+    };
+
+    let params = TransformParams::default();
+    let result = svc.process(params, "https://example.com/v.mp4".to_string()).await;
+    assert!(
+      matches!(result, Err(ProxyError::VideoDecodeError)),
+      "expected VideoDecodeError for invalid video content"
     );
   }
 }

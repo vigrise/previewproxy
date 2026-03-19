@@ -17,12 +17,22 @@ tokio = { version = "1", features = ["full"] }
 axum = "0.8"
 hyper = "1"
 tower = "0.5"
-tower-http = { version = "0.6", features = ["trace", "timeout", "request-id", "cors", "normalize-path"] }
+tower-http = { version = "0.6", features = [
+  "trace",
+  "timeout",
+  "request-id",
+  "cors",
+  "normalize-path",
+] }
 
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["json", "env-filter"] }
 
-reqwest = { version = "0.13", default-features = false, features = ["json", "rustls", "stream"] }
+reqwest = { version = "0.13", default-features = false, features = [
+  "json",
+  "rustls",
+  "stream",
+] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 uuid = { version = "1", features = ["v7", "serde"] }
@@ -30,7 +40,26 @@ clap = { version = "4", features = ["derive", "env"] }
 dotenvy = "0.15"
 anyhow = "1"
 thiserror = "2"
-image = { version = "0.25", features = ["webp", "jpeg", "png"] }
+image = { version = "0.25", features = [
+  "webp",
+  "jpeg",
+  "png",
+  "gif",
+  "tiff",
+  "bmp",
+  "ico",
+  "avif",
+] }
+ravif = "0.13"
+bytemuck = { version = "1", features = ["derive"] }
+resvg = "0.47"
+psd = "0.3"
+jxl-oxide = "0.12"
+jpegxl-rs = { version = "0.6" }
+libheif-rs = { version = "2.7", default-features = false, features = ["v1_17"] }
+pdfium-render = "0.8.26"
+ffmpeg-next = "8"
+tempfile = "3"
 moka = { version = "0.12", features = ["future"] }
 sha2 = "0.10"
 hmac = "0.12"
@@ -49,4 +78,3 @@ url = "2"
 tower = { version = "0.5", features = ["util"] }
 http-body-util = "0.1"
 wiremock = "0.6"
-tempfile = "3"
