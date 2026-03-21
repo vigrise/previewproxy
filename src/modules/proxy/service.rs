@@ -102,7 +102,7 @@ impl ProxyService {
       .unwrap_or_else(|| crate::modules::proxy::sources::video::is_video_magic(&src_bytes));
 
     if is_video {
-      match crate::modules::proxy::sources::video::extract_frame(&src_bytes, params.t.unwrap_or(0.0)) {
+      match crate::modules::proxy::sources::video::extract_frame(&src_bytes, params.t.unwrap_or(0.0)).await {
         Ok(frame) => match crate::modules::proxy::sources::video::frame_to_png_bytes(frame) {
           Ok(png_bytes) => {
             src_bytes = png_bytes;
