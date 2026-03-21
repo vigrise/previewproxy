@@ -58,7 +58,6 @@ jxl-oxide = "0.12"
 jpegxl-rs = { version = "0.6" }
 libheif-rs = { version = "2.7", default-features = false, features = ["v1_17"] }
 pdfium-render = "0.8.26"
-ffmpeg-next = "8"
 tempfile = "3"
 moka = { version = "0.12", features = ["future"] }
 sha2 = "0.10"
