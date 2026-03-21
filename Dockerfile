@@ -21,11 +21,6 @@ RUN apt-get update -y \
     libheif-dev \
     libjxl-dev \
     ffmpeg \
-    libavcodec-dev \
-    libavformat-dev \
-    libavutil-dev \
-    libswscale-dev \
-    libswresample-dev \
   && apt-get autoremove -y \
   && apt-get clean -y \
   && rm -rf /var/lib/apt/lists/*
