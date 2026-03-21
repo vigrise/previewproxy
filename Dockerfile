@@ -6,6 +6,14 @@ COPY . .
 RUN cargo chef prepare --recipe-path recipe.json
 
 FROM chef AS builder
+RUN apt-get update -y \
+  && apt-get install -y --no-install-recommends \
+    pkg-config \
+    libdav1d-dev \
+    libheif-dev \
+    libjxl-dev \
+  && apt-get clean -y \
+  && rm -rf /var/lib/apt/lists/*
 COPY --from=planner /app/recipe.json recipe.json
 RUN cargo chef cook --release --recipe-path recipe.json
 COPY . .
