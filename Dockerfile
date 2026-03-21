@@ -9,6 +9,8 @@ FROM chef AS builder
 RUN apt-get update -y \
   && apt-get install -y --no-install-recommends \
     pkg-config \
+    cmake \
+    nasm \
     libdav1d-dev \
     libheif-dev \
     libjxl-dev \
