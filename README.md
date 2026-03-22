@@ -8,18 +8,17 @@
   <a href="https://github.com/vigrise/previewproxy/issues"><img src="https://img.shields.io/github/issues/vigrise/previewproxy" alt="GitHub issues"></a>
 </p>
 
-A fast, self-hosted HTTP image proxy written in Rust. Fetch remote images by URL, transform them on-the-fly, and serve them with multi-tier caching.
+A fast, self-hosted image proxy written in Rust. Fetch images from HTTP URLs, S3 buckets, or local storage - transform them on-the-fly and serve them with multi-tier caching.
 
 ## Features
 
-- **On-the-fly transforms** - resize, crop, rotate, flip, grayscale, brightness/contrast, blur, watermark, format conversion (JPEG, PNG, WebP)
+- **On-the-fly transforms** - resize, crop, rotate, flip, grayscale, brightness/contrast, blur, watermark, format conversion (JPEG, PNG, WebP, AVIF, JXL)
+- **Multiple sources** - remote HTTP URLs, S3-compatible buckets, and local filesystem
 - **Two request styles** - path-style (`/300x200,webp/https://example.com/img.jpg`) and query-style (`/proxy?url=...&w=300&h=200`)
 - **Multi-tier cache** - L1 in-memory (moka) + L2 disk with singleflight dedup
-- **Security** - allowlist of trusted domains + optional HMAC request signing
-- **SSRF protection** - private IP blocking, per-hop allowlist re-validation on redirects
-- **Structured JSON logging** via [tracing](https://github.com/tokio-rs/tracing)
+- **Security** - domain allowlist, optional HMAC request signing, configurable CORS origins, SSRF protection (private IP blocking, per-hop allowlist re-validation on redirects)
 - **Video thumbnail extraction** - extract a frame from MP4, MKV, AVI and pass it through the normal transform pipeline
-- **Docker** support with multi-stage builds (requires `ffmpeg` at runtime)
+- **Structured JSON logging** via [tracing](https://github.com/tokio-rs/tracing)
 
 ## Request Styles
 
@@ -47,47 +46,64 @@ Query params take precedence when both styles are combined.
 
 ## Transform Parameters
 
-| Param      | Values                          | Description                          |
-| ---------- | ------------------------------- | ------------------------------------ |
-| `w`        | integer                         | Output width in pixels               |
-| `h`        | integer                         | Output height in pixels              |
-| `fit`      | `contain` (default), `cover`    | Resize mode                          |
-| `format`   | `jpeg`, `png`, `webp`           | Output format                        |
-| `q`        | 1–100 (default: 85)             | Compression quality                  |
-| `rotate`   | `90`, `180`, `270`              | Rotation degrees                     |
-| `flip`     | `h`, `v`                        | Flip horizontal or vertical          |
-| `grayscale`| `true`                          | Convert to grayscale                 |
-| `bright`   | -100 to 100                     | Brightness adjustment                |
-| `contrast` | -100 to 100                     | Contrast adjustment                  |
-| `blur`     | float (sigma)                   | Gaussian blur                        |
-| `wm`       | URL                             | Watermark image URL                  |
-| `t`        | float (seconds, default: 0)     | Video seek time for frame extraction |
-| `sig`      | string                          | HMAC-SHA256 signature (if required)  |
+| Param       | Values                       | Description                          |
+| ----------- | ---------------------------- | ------------------------------------ |
+| `w`         | integer                      | Output width in pixels               |
+| `h`         | integer                      | Output height in pixels              |
+| `fit`       | `contain` (default), `cover` | Resize mode                          |
+| `format`    | `jpeg`, `png`, `webp`        | Output format                        |
+| `q`         | 1-100 (default: 85)          | Compression quality                  |
+| `rotate`    | `90`, `180`, `270`           | Rotation degrees                     |
+| `flip`      | `h`, `v`                     | Flip horizontal or vertical          |
+| `grayscale` | `true`                       | Convert to grayscale                 |
+| `bright`    | -100 to 100                  | Brightness adjustment                |
+| `contrast`  | -100 to 100                  | Contrast adjustment                  |
+| `blur`      | float (sigma)                | Gaussian blur                        |
+| `wm`        | URL                          | Watermark image URL                  |
+| `t`         | float (seconds, default: 0)  | Video seek time for frame extraction |
+| `sig`       | string                       | HMAC-SHA256 signature (if required)  |
 
 ## API Endpoints
 
-| Method | Path       | Description                          |
-| ------ | ---------- | ------------------------------------ |
-| `GET`  | `/health`  | Health check with cache stats        |
-| `GET`  | `/proxy`   | Query-style image proxy              |
-| `GET`  | `/*path`   | Path-style image proxy               |
+| Method | Path      | Description                   |
+| ------ | --------- | ----------------------------- |
+| `GET`  | `/health` | Health check with cache stats |
+| `GET`  | `/proxy`  | Query-style image proxy       |
+| `GET`  | `/*path`  | Path-style image proxy        |
 
 ## Getting Started
 
-Download the pre-built binary for your platform from the [releases page](https://github.com/vigrise/previewproxy/releases/latest):
+### Linux / macOS
 
 ```shell
-OS=$(uname -s | tr '[:upper:]' '[:lower:]')
-ARCH=$(uname -m | sed 's/x86_64/x86_64/;s/aarch64/aarch64/;s/arm64/aarch64/')
-wget "https://github.com/vigrise/previewproxy/releases/latest/download/previewproxy-${OS}-${ARCH}" -O previewproxy
-chmod +x previewproxy
-./previewproxy --port 8080 --allowed-hosts img.example.com
+curl -o- https://raw.githubusercontent.com/vigrise/previewproxy/main/install.sh | bash
+# or
+wget -qO- https://raw.githubusercontent.com/vigrise/previewproxy/main/install.sh | bash
 ```
 
-Or pull and run the latest image from GitHub Container Registry:
+Installs to `/usr/local/bin`. Override with env vars:
+
+| Var           | Default          | Description                |
+| ------------- | ---------------- | -------------------------- |
+| `INSTALL_DIR` | `/usr/local/bin` | Destination directory      |
+| `VERSION`     | `latest`         | Release tag, e.g. `v1.0.0` |
+
+### Windows
+
+```powershell
+irm https://raw.githubusercontent.com/vigrise/previewproxy/main/install.ps1 | iex
+```
+
+Installs to `%LOCALAPPDATA%\previewproxy\bin` and adds it to your user `PATH`. Override with flags:
+
+| Flag          | Default                           | Description                |
+| ------------- | --------------------------------- | -------------------------- |
+| `-InstallDir` | `%LOCALAPPDATA%\previewproxy\bin` | Destination directory      |
+| `-Version`    | `latest`                          | Release tag, e.g. `v1.0.0` |
+
+### Docker
 
 ```shell
-docker pull ghcr.io/vigrise/previewproxy:latest
 docker run -d -p 8080:8080 \
   -e ALLOWED_HOSTS=img.example.com \
   -e HMAC_KEY=mysecret \
@@ -108,24 +124,24 @@ docker-compose up -d
 
 Configuration is read from environment variables (`.env` file) or CLI flags - CLI flags take precedence.
 
-| Flag | Env var | Default | Description |
-| --- | --- | --- | --- |
-| `--port`, `-p` | `PORT` | `8080` | Server port |
-| `--env`, `-E` | `APP_ENV` | `development` | `development` or `production` |
-| `--hmac-key`, `-k` | `HMAC_KEY` | - | HMAC signing key; omit to disable |
-| `--allowed-hosts`, `-a` | `ALLOWED_HOSTS` | - | Comma-separated allowed domains; empty = allow all |
-| `--fetch-timeout-secs`, `-t` | `FETCH_TIMEOUT_SECS` | `10` | Upstream fetch timeout (seconds) |
-| `--max-source-bytes`, `-s` | `MAX_SOURCE_BYTES` | `20971520` | Max source image size (bytes) |
-| `--cache-memory-max-mb` | `CACHE_MEMORY_MAX_MB` | `256` | L1 in-memory cache size (MB) |
-| `--cache-memory-ttl-secs` | `CACHE_MEMORY_TTL_SECS` | `3600` | L1 cache TTL (seconds) |
-| `--cache-dir`, `-D` | `CACHE_DIR` | `/tmp/previewproxy` | L2 disk cache directory |
-| `--cache-disk-ttl-secs` | `CACHE_DISK_TTL_SECS` | `86400` | L2 cache TTL (seconds) |
-| `--cache-disk-max-mb` | `CACHE_DISK_MAX_MB` | - | L2 disk cache size limit (MB); empty = unlimited |
-| `--cache-cleanup-interval-secs` | `CACHE_CLEANUP_INTERVAL_SECS` | `600` | Background cleanup interval (seconds) |
-| `--ffmpeg-path` | `FFMPEG_PATH` | `ffmpeg` | Path to the ffmpeg binary |
-| `--cors-allow-origin` | `CORS_ALLOW_ORIGIN` | `*` | Comma-separated allowed CORS origins; `*` = allow all; wildcards (`*.example.com`) match a single subdomain label |
-| `--cors-max-age-secs` | `CORS_MAX_AGE_SECS` | `600` | CORS preflight cache duration (seconds) |
-| - | `RUST_LOG` | `server=info,...` | Log level filter |
+| Flag                            | Env var                       | Default             | Description                                                                                                       |
+| ------------------------------- | ----------------------------- | ------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `--port`, `-p`                  | `PORT`                        | `8080`              | Server port                                                                                                       |
+| `--env`, `-E`                   | `APP_ENV`                     | `development`       | `development` or `production`                                                                                     |
+| `--hmac-key`, `-k`              | `HMAC_KEY`                    | -                   | HMAC signing key; omit to disable                                                                                 |
+| `--allowed-hosts`, `-a`         | `ALLOWED_HOSTS`               | -                   | Comma-separated allowed domains; empty = allow all                                                                |
+| `--fetch-timeout-secs`, `-t`    | `FETCH_TIMEOUT_SECS`          | `10`                | Upstream fetch timeout (seconds)                                                                                  |
+| `--max-source-bytes`, `-s`      | `MAX_SOURCE_BYTES`            | `20971520`          | Max source image size (bytes)                                                                                     |
+| `--cache-memory-max-mb`         | `CACHE_MEMORY_MAX_MB`         | `256`               | L1 in-memory cache size (MB)                                                                                      |
+| `--cache-memory-ttl-secs`       | `CACHE_MEMORY_TTL_SECS`       | `3600`              | L1 cache TTL (seconds)                                                                                            |
+| `--cache-dir`, `-D`             | `CACHE_DIR`                   | `/tmp/previewproxy` | L2 disk cache directory                                                                                           |
+| `--cache-disk-ttl-secs`         | `CACHE_DISK_TTL_SECS`         | `86400`             | L2 cache TTL (seconds)                                                                                            |
+| `--cache-disk-max-mb`           | `CACHE_DISK_MAX_MB`           | -                   | L2 disk cache size limit (MB); empty = unlimited                                                                  |
+| `--cache-cleanup-interval-secs` | `CACHE_CLEANUP_INTERVAL_SECS` | `600`               | Background cleanup interval (seconds)                                                                             |
+| `--ffmpeg-path`                 | `FFMPEG_PATH`                 | `ffmpeg`            | Path to the ffmpeg binary                                                                                         |
+| `--cors-allow-origin`           | `CORS_ALLOW_ORIGIN`           | `*`                 | Comma-separated allowed CORS origins; `*` = allow all; wildcards (`*.example.com`) match a single subdomain label |
+| `--cors-max-age-secs`           | `CORS_MAX_AGE_SECS`           | `600`               | CORS preflight cache duration (seconds)                                                                           |
+| -                               | `RUST_LOG`                    | `server=info,...`   | Log level filter                                                                                                  |
 
 ---
 
@@ -133,23 +149,13 @@ Configuration is read from environment variables (`.env` file) or CLI flags - CL
 
 ### Allowlist
 
-Set `ALLOWED_HOSTS` to a comma-separated list of trusted domains. Wildcards match a single label:
+Set `ALLOWED_HOSTS` to a comma-separated list of trusted upstream domains. Wildcards match a single label:
 
-```env
+```ini
 ALLOWED_HOSTS=img.example.com,*.cdn.example.com
 ```
 
 Leave empty to allow any host (open mode - use only in trusted environments).
-
-### CORS
-
-Set `CORS_ALLOW_ORIGIN` to restrict which origins browsers may use. Wildcards match a single subdomain label:
-
-```env
-CORS_ALLOW_ORIGIN=https://app.example.com,*.cdn.example.com
-```
-
-Leave as `*` (default) to allow any origin.
 
 ### HMAC Signing
 
@@ -160,6 +166,20 @@ HMAC-SHA256(key, canonical_string)
 ```
 
 where `canonical_string` is alphabetically sorted `key=value` pairs (excluding `sig`) joined by `&`, followed by `:` and the decoded image URL. Encode the result as URL-safe base64 (no padding) and pass it as the `sig` parameter.
+
+### CORS
+
+Set `CORS_ALLOW_ORIGIN` to restrict which browser origins may access the proxy. Wildcards match a single subdomain label:
+
+```ini
+CORS_ALLOW_ORIGIN=https://app.example.com,*.cdn.example.com
+```
+
+Leave as `*` (default) to allow any origin.
+
+### SSRF Protection
+
+Private, loopback, link-local, and reserved IP ranges (RFC 1918, RFC 6598, IPv6 ULA) are always blocked. On redirects, each hop's resolved IP and host are re-validated before following, preventing bypass via open redirectors.
 
 ## Development
 
@@ -185,6 +205,7 @@ brew install ffmpeg pkg-config cmake nasm libheif jpeg-xl dav1d
 ```
 
 ### Commands
+
 ```shell
 # Start dev server
 cargo run
