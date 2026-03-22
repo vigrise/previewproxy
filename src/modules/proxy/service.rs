@@ -104,7 +104,13 @@ impl ProxyService {
       .unwrap_or_else(|| crate::modules::proxy::sources::video::is_video_magic(&src_bytes));
 
     if is_video {
-      match crate::modules::proxy::sources::video::extract_frame(&src_bytes, params.t.unwrap_or(0.0), &self.ffmpeg_path).await {
+      match crate::modules::proxy::sources::video::extract_frame(
+        &src_bytes,
+        params.t.unwrap_or(0.0),
+        &self.ffmpeg_path,
+      )
+      .await
+      {
         Ok(frame) => match crate::modules::proxy::sources::video::frame_to_png_bytes(frame) {
           Ok(png_bytes) => {
             src_bytes = png_bytes;
@@ -123,7 +129,8 @@ impl ProxyService {
     }
 
     // 9. Force pipeline for PDF to rasterize first page even without transform flags.
-    let is_pdf = src_ct.as_deref() == Some("application/pdf") || (!is_video && src_bytes.starts_with(b"%PDF"));
+    let is_pdf =
+      src_ct.as_deref() == Some("application/pdf") || (!is_video && src_bytes.starts_with(b"%PDF"));
 
     // 10. If has_transforms or is_pdf: run_pipeline(); else resolve_content_type()
     let pipeline_result = if params.has_transforms() || is_pdf {
@@ -193,6 +200,8 @@ mod tests {
       local_enabled: false,
       local_base_dir: None,
       ffmpeg_path: "ffmpeg".to_string(),
+      cors_allow_origin: vec!["*".to_string()],
+      cors_max_age_secs: 600,
     })
   }
 
@@ -230,7 +239,7 @@ mod tests {
     let svc = make_service_with_allowlist(vec!["example.com".to_string()]);
     let params = TransformParams::default();
     let result = svc.process(params, "s3:/some/key.jpg".to_string()).await;
-    // Should NOT be HostNotAllowed — it should reach the fetcher and return the mock error.
+    // Should NOT be HostNotAllowed - it should reach the fetcher and return the mock error.
     assert!(
       !matches!(result, Err(ProxyError::HostNotAllowed)),
       "expected s3 URL to bypass allowlist, but got HostNotAllowed"
@@ -243,7 +252,7 @@ mod tests {
     let svc = make_service_with_allowlist(vec!["example.com".to_string()]);
     // Use a mock HTTP image URL that IS allowed, with a local:/ watermark.
     // But since the fetcher is a mock that always errors, we just verify not HostNotAllowed.
-    // Actually, the image URL is also not http — let's use a non-http image too to keep it simple.
+    // Actually, the image URL is also not http - let's use a non-http image too to keep it simple.
     let params = TransformParams {
       wm: Some("local:/watermarks/logo.png".to_string()),
       ..TransformParams::default()
@@ -283,7 +292,9 @@ mod tests {
     };
 
     let params = TransformParams::default();
-    let result = svc.process(params, "https://example.com/v.mp4".to_string()).await;
+    let result = svc
+      .process(params, "https://example.com/v.mp4".to_string())
+      .await;
     assert!(
       matches!(result, Err(ProxyError::VideoDecodeError)),
       "expected VideoDecodeError for invalid video content"

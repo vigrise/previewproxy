@@ -149,7 +149,7 @@ mod tests {
   #[tokio::test]
   async fn test_wait_no_inflight_returns_none() {
     let inflight = InflightMap::new();
-    // No one is in-flight for this key — wait should return None quickly
+    // No one is in-flight for this key - wait should return None quickly
     // (in practice, caller checks is_inflight first; this tests the race-at-boundary case)
     let result = tokio::time::timeout(
       tokio::time::Duration::from_millis(50),

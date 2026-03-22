@@ -41,6 +41,8 @@ pub async fn router(cfg: Config, cache: Arc<CacheManager>) -> Router {
 
   let fetcher: Arc<dyn Fetchable> = Arc::new(SourceRouter::new(http, s3, local));
 
+  let cors_layer = middlewares::cors_layer(&cfg.cors_allow_origin, cfg.cors_max_age_secs);
+
   let app_state = AppState {
     cfg,
     cache,
@@ -50,7 +52,6 @@ pub async fn router(cfg: Config, cache: Arc<CacheManager>) -> Router {
   let trace_layer = telemetry::trace_layer();
   let request_id_layer = middlewares::request_id_layer();
   let propagate_request_id_layer = middlewares::propagate_request_id_layer();
-  let cors_layer = middlewares::cors_layer();
   let timeout_layer = middlewares::timeout_layer();
   let normalize_path_layer = middlewares::normalize_path_layer();
 

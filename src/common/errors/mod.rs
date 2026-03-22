@@ -65,9 +65,9 @@ impl IntoResponse for ProxyError {
       ProxyError::SourceTooLarge => StatusCode::PAYLOAD_TOO_LARGE,
       ProxyError::HostNotAllowed | ProxyError::InvalidSignature => StatusCode::FORBIDDEN,
       ProxyError::InvalidParams(_) => StatusCode::BAD_REQUEST,
-      ProxyError::HeicDecodeError
-      | ProxyError::PdfRenderError
-      | ProxyError::VideoDecodeError => StatusCode::UNPROCESSABLE_ENTITY,
+      ProxyError::HeicDecodeError | ProxyError::PdfRenderError | ProxyError::VideoDecodeError => {
+        StatusCode::UNPROCESSABLE_ENTITY
+      }
       ProxyError::UnsupportedFormat(_) => StatusCode::BAD_REQUEST,
       ProxyError::InternalError(_) => StatusCode::INTERNAL_SERVER_ERROR,
     };

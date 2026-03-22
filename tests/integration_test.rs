@@ -5,7 +5,7 @@ use tower::ServiceExt;
 static ENV_MUTEX: Mutex<()> = Mutex::new(());
 
 fn tiny_png() -> Vec<u8> {
-  // 1x1 pixel PNG — properly encoded, decodeable by the image crate
+  // 1x1 pixel PNG - properly encoded, decodeable by the image crate
   use base64::{engine::general_purpose::STANDARD, Engine};
   STANDARD
     .decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC")
@@ -164,7 +164,7 @@ async fn test_local_source_passthrough() {
   let cache = previewproxy::modules::cache::manager::CacheManager::new(&cfg);
   let app = previewproxy::app::router(cfg, cache).await;
 
-  // local:/test.png — relative path joined to LOCAL_BASE_DIR
+  // local:/test.png - relative path joined to LOCAL_BASE_DIR
   let resp = app
     .oneshot(
       axum::http::Request::builder()
@@ -201,7 +201,7 @@ async fn test_local_source_with_resize() {
   let cache = previewproxy::modules::cache::manager::CacheManager::new(&cfg);
   let app = previewproxy::app::router(cfg, cache).await;
 
-  // 1x1,webp/local:/test.png — resize to 1x1 and convert to webp
+  // 1x1,webp/local:/test.png - resize to 1x1 and convert to webp
   let resp = app
     .oneshot(
       axum::http::Request::builder()

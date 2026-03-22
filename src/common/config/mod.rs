@@ -39,6 +39,9 @@ pub struct Configuration {
   pub local_base_dir: Option<String>,
   // Video
   pub ffmpeg_path: String,
+  // CORS
+  pub cors_allow_origin: Vec<String>,
+  pub cors_max_age_secs: u64,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -119,9 +122,16 @@ impl Configuration {
       local_enabled: env_var_bool("LOCAL_ENABLED"),
       local_base_dir: env_var_opt("LOCAL_BASE_DIR"),
       ffmpeg_path: std::env::var("FFMPEG_PATH").unwrap_or_else(|_| "ffmpeg".to_string()),
+      cors_allow_origin: std::env::var("CORS_ALLOW_ORIGIN")
+        .unwrap_or_else(|_| "*".to_string())
+        .split(',')
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect(),
+      cors_max_age_secs: env_var_u64("CORS_MAX_AGE_SECS", 600),
     });
     if cfg.hmac_key.is_none() {
-      tracing::warn!("HMAC_KEY is not set — all requests are unauthenticated");
+      tracing::warn!("HMAC_KEY is not set - all requests are unauthenticated");
     }
     if cfg.s3_enabled {
       if cfg.s3_bucket.is_none() {
@@ -138,14 +148,14 @@ impl Configuration {
       panic!("LOCAL_ENABLED=true but LOCAL_BASE_DIR is not set");
     }
     if cfg.allowed_hosts.is_empty() {
-      tracing::warn!("ALLOWED_HOSTS is not set — proxying requests to any host is allowed");
+      tracing::warn!("ALLOWED_HOSTS is not set - proxying requests to any host is allowed");
     }
     if cfg.env == Environment::Production {
       if cfg.hmac_key.is_none() {
-        tracing::error!("Running in production without HMAC_KEY — this is a security risk");
+        tracing::error!("Running in production without HMAC_KEY - this is a security risk");
       }
       if cfg.allowed_hosts.is_empty() {
-        tracing::error!("Running in production without ALLOWED_HOSTS — this is a security risk");
+        tracing::error!("Running in production without ALLOWED_HOSTS - this is a security risk");
       }
     }
     info!(?cfg, "Configuration loaded");
@@ -187,6 +197,8 @@ impl std::fmt::Debug for Configuration {
       .field("local_enabled", &self.local_enabled)
       .field("local_base_dir", &self.local_base_dir)
       .field("ffmpeg_path", &self.ffmpeg_path)
+      .field("cors_allow_origin", &self.cors_allow_origin)
+      .field("cors_max_age_secs", &self.cors_max_age_secs)
       .finish()
   }
 }

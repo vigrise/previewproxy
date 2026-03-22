@@ -25,11 +25,20 @@ fn decode_svg(bytes: &[u8]) -> Result<DynamicImage, ProxyError> {
   use resvg::usvg::{Options, Tree};
 
   let opts = Options::default();
-  let tree = Tree::from_data(bytes, &opts).map_err(|e| ProxyError::InternalError(format!("svg parse: {e}")))?;
+  let tree = Tree::from_data(bytes, &opts)
+    .map_err(|e| ProxyError::InternalError(format!("svg parse: {e}")))?;
 
   let size = tree.size();
-  let width = if size.width() > 0.0 { size.width() as u32 } else { 1024 };
-  let height = if size.height() > 0.0 { size.height() as u32 } else { 1024 };
+  let width = if size.width() > 0.0 {
+    size.width() as u32
+  } else {
+    1024
+  };
+  let height = if size.height() > 0.0 {
+    size.height() as u32
+  } else {
+    1024
+  };
   let width = width.min(4096);
   let height = height.min(4096);
 
@@ -45,7 +54,8 @@ fn decode_svg(bytes: &[u8]) -> Result<DynamicImage, ProxyError> {
 }
 
 fn decode_psd(bytes: &[u8]) -> Result<DynamicImage, ProxyError> {
-  let doc = psd::Psd::from_bytes(bytes).map_err(|e| ProxyError::InternalError(format!("psd: {e}")))?;
+  let doc =
+    psd::Psd::from_bytes(bytes).map_err(|e| ProxyError::InternalError(format!("psd: {e}")))?;
   let rgba_bytes = doc.rgba();
   let width = doc.width();
   let height = doc.height();
@@ -58,13 +68,18 @@ fn decode_heic(bytes: &[u8]) -> Result<DynamicImage, ProxyError> {
   use libheif_rs::{ColorSpace, HeifContext, LibHeif, RgbChroma};
 
   let ctx = HeifContext::read_from_bytes(bytes).map_err(|_| ProxyError::HeicDecodeError)?;
-  let handle = ctx.primary_image_handle().map_err(|_| ProxyError::HeicDecodeError)?;
+  let handle = ctx
+    .primary_image_handle()
+    .map_err(|_| ProxyError::HeicDecodeError)?;
   let lib = LibHeif::new();
   let image = lib
     .decode(&handle, ColorSpace::Rgb(RgbChroma::Rgba), None)
     .map_err(|_| ProxyError::HeicDecodeError)?;
 
-  let plane = image.planes().interleaved.ok_or(ProxyError::HeicDecodeError)?;
+  let plane = image
+    .planes()
+    .interleaved
+    .ok_or(ProxyError::HeicDecodeError)?;
   let width = image.width();
   let height = image.height();
   let stride = plane.stride;
@@ -96,7 +111,9 @@ fn decode_pdf(bytes: &[u8]) -> Result<DynamicImage, ProxyError> {
 
   let page = doc.pages().get(0).map_err(|_| ProxyError::PdfRenderError)?;
 
-  let render_config = PdfRenderConfig::new().set_target_width(1200).set_maximum_height(1600);
+  let render_config = PdfRenderConfig::new()
+    .set_target_width(1200)
+    .set_maximum_height(1600);
 
   let bitmap = page
     .render_with_config(&render_config)

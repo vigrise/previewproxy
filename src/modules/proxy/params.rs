@@ -248,8 +248,7 @@ fn parse_options(opts: &str) -> Result<TransformParams, ProxyError> {
       "contain" | "cover" | "crop" => {
         p.fit = Some(token.to_string());
       }
-      "webp" | "jpeg" | "png" | "avif" | "gif" | "bmp" | "tiff" | "ico"
-      | "jxl" => {
+      "webp" | "jpeg" | "png" | "avif" | "gif" | "bmp" | "tiff" | "ico" | "jxl" => {
         p.format = Some(token.to_string());
       }
       "fliph" => {
@@ -367,7 +366,7 @@ mod tests {
 
   #[test]
   fn test_watermark_url_split_uses_last_http() {
-    // wm URL contains https:// — must split at the LAST /https://
+    // wm URL contains https:// - must split at the LAST /https://
     let (params, url) =
       TransformParams::from_path("wm:https://logo.png/https://example.com/img.jpg").unwrap();
     assert_eq!(params.wm, Some("https://logo.png".to_string()));
