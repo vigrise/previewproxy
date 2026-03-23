@@ -37,6 +37,7 @@ pub struct ProxyService {
   allowlist: Allowlist,
   hmac_key: Option<String>,
   ffmpeg_path: String,
+  ffprobe_path: String,
   max_source_bytes: u64,
 }
 
@@ -50,6 +51,7 @@ impl ProxyService {
       allowlist,
       hmac_key: state.cfg.hmac_key.clone(),
       ffmpeg_path: state.cfg.ffmpeg_path.clone(),
+      ffprobe_path: state.cfg.ffprobe_path.clone(),
       max_source_bytes: state.cfg.max_source_bytes,
     }
   }
@@ -227,16 +229,33 @@ impl ProxyService {
       .unwrap_or_else(|| crate::modules::proxy::sources::video::is_video_magic(&src_bytes));
 
     if is_video {
-      match crate::modules::proxy::sources::video::extract_frame(
-        &src_bytes,
-        match params.t {
-          Some(crate::modules::proxy::params::SeekMode::Absolute(s)) => s,
-          _ => 0.0,
-        },
-        &self.ffmpeg_path,
-      )
-      .await
-      {
+      use crate::modules::proxy::params::SeekMode;
+      use crate::modules::proxy::sources::video::{extract_frame, probe_duration};
+
+      let t_secs = match &params.t {
+        None => 0.0,
+        Some(SeekMode::Absolute(s)) => *s,
+        Some(SeekMode::Relative(r)) => {
+          match probe_duration(&src_bytes, &self.ffprobe_path).await {
+            Ok(dur) => dur * r,
+            Err(_) => {
+              tracing::warn!("ffprobe failed for relative seek, falling back to t=0.0");
+              0.0
+            }
+          }
+        }
+        Some(SeekMode::Auto) => {
+          match probe_duration(&src_bytes, &self.ffprobe_path).await {
+            Ok(dur) => dur * 0.5,
+            Err(_) => {
+              tracing::warn!("ffprobe failed for auto seek, falling back to t=0.0");
+              0.0
+            }
+          }
+        }
+      };
+
+      match extract_frame(&src_bytes, t_secs, &self.ffmpeg_path).await {
         Ok(frame) => match crate::modules::proxy::sources::video::frame_to_png_bytes(frame) {
           Ok(png_bytes) => {
             src_bytes = png_bytes;
@@ -326,6 +345,7 @@ mod tests {
       local_enabled: false,
       local_base_dir: None,
       ffmpeg_path: "ffmpeg".to_string(),
+      ffprobe_path: "ffprobe".to_string(),
       cors_allow_origin: vec!["*".to_string()],
       cors_max_age_secs: 600,
       max_concurrent_requests: 256,
@@ -363,6 +383,7 @@ mod tests {
       allowlist: Allowlist::new(allowed_hosts),
       hmac_key: None,
       ffmpeg_path: "ffmpeg".to_string(),
+      ffprobe_path: "ffprobe".to_string(),
       max_source_bytes: 1_000_000,
     }
   }
@@ -439,6 +460,7 @@ mod tests {
       allowlist: Allowlist::new(vec![]),
       hmac_key: None,
       ffmpeg_path: "ffmpeg".to_string(),
+      ffprobe_path: "ffprobe".to_string(),
       max_source_bytes: 1_000_000,
     };
 
@@ -493,6 +515,7 @@ mod streaming_tests {
       local_enabled: false,
       local_base_dir: None,
       ffmpeg_path: "ffmpeg".to_string(),
+      ffprobe_path: "ffprobe".to_string(),
       cors_allow_origin: vec!["*".to_string()],
       cors_max_age_secs: 600,
       max_concurrent_requests: 256,
@@ -509,6 +532,7 @@ mod streaming_tests {
       allowlist: Allowlist::new(vec![]),
       hmac_key: None,
       ffmpeg_path: "ffmpeg".to_string(),
+      ffprobe_path: "ffprobe".to_string(),
       max_source_bytes: max_bytes,
     };
     (svc, cache)
