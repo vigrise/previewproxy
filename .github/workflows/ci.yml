@@ -94,12 +94,14 @@ jobs:
 
       - name: Install native dependencies (Windows)
         if: runner.os == 'Windows'
-        run: vcpkg install dav1d libjxl libheif --triplet x64-windows-static-md
+        run: |
+          choco install pkgconfiglite -y
+          vcpkg install dav1d libjxl libheif --triplet x64-windows-static-md
 
       - name: Build
         env:
-          VCPKG_ROOT: ${{ runner.os == 'Windows' && 'C:\vcpkg' || '' }}
-          PKG_CONFIG_PATH: ${{ runner.os == 'Windows' && 'C:\vcpkg\installed\x64-windows-static-md\lib\pkgconfig' || '' }}
+          VCPKG_ROOT: ${{ runner.os == 'Windows' && 'C:/vcpkg' || '' }}
+          PKG_CONFIG_PATH: ${{ runner.os == 'Windows' && 'C:/vcpkg/installed/x64-windows-static-md/lib/pkgconfig' || '' }}
         run: cargo build --release --target ${{ matrix.target }}
 
       - name: Rename binary
