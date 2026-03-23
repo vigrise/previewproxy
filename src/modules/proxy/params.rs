@@ -1,20 +1,44 @@
 use crate::common::errors::ProxyError;
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum SeekMode {
+  /// Absolute seconds from start (clamped >= 0). e.g. `t=5.0`
+  Absolute(f32),
+  /// Ratio of total duration 0.0-1.0 (clamped). e.g. `t=0.5r`
+  Relative(f32),
+  /// Middle of video (50% of duration via ffprobe). e.g. `t=auto`
+  Auto,
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct TransformParams {
+  /// Output width in pixels (max 8192).
   pub w: Option<u32>,
+  /// Output height in pixels (max 8192).
   pub h: Option<u32>,
+  /// Resize mode: `contain`, `cover`, or `crop`.
   pub fit: Option<String>,
+  /// Output format: `webp`, `jpeg`, `png`, `avif`, `gif`, `bmp`, `tiff`, `ico`, `jxl`.
   pub format: Option<String>,
+  /// JPEG/WebP quality 1-100.
   pub q: Option<u32>,
+  /// Clockwise rotation in degrees (e.g. 90, 180, 270).
   pub rotate: Option<u32>,
+  /// Flip axis: `h` (horizontal) or `v` (vertical).
   pub flip: Option<String>,
+  /// Gaussian blur radius 0-100.
   pub blur: Option<f32>,
+  /// Convert to grayscale.
   pub grayscale: Option<bool>,
-  pub t: Option<f32>,
+  /// Seek mode for video thumbnail extraction.
+  pub t: Option<SeekMode>,
+  /// Brightness adjustment (-255 to 255).
   pub bright: Option<i32>,
+  /// Contrast adjustment (-255 to 255).
   pub contrast: Option<i32>,
+  /// Watermark image URL (http/https/s3/local).
   pub wm: Option<String>,
+  /// HMAC signature for request validation (excluded from canonical string).
   pub sig: Option<String>,
 }
 
@@ -141,8 +165,11 @@ impl TransformParams {
     if let Some(v) = &self.rotate {
       parts.push(format!("rotate={v}"));
     }
-    if let Some(v) = &self.t {
-      parts.push(format!("t={v}"));
+    match &self.t {
+      Some(SeekMode::Auto) => parts.push("t=auto".to_string()),
+      Some(SeekMode::Relative(r)) => parts.push(format!("t={r}r")),
+      Some(SeekMode::Absolute(s)) => parts.push(format!("t={s}")),
+      None => {}
     }
     if let Some(v) = &self.w {
       parts.push(format!("w={v}"));
@@ -213,10 +240,20 @@ fn parse_options(opts: &str) -> Result<TransformParams, ProxyError> {
         continue;
       }
     }
-    // t:5.0
+    // t:5.0 / t:0.5r / t:auto
     if let Some(val) = token.strip_prefix("t:") {
+      if val == "auto" {
+        p.t = Some(SeekMode::Auto);
+        continue;
+      }
+      if let Some(rel) = val.strip_suffix('r') {
+        if let Ok(v) = rel.parse::<f32>() {
+          p.t = Some(SeekMode::Relative(v.clamp(0.0, 1.0)));
+          continue;
+        }
+      }
       if let Ok(v) = val.parse::<f32>() {
-        p.t = Some(v.max(0.0));
+        p.t = Some(SeekMode::Absolute(v.max(0.0)));
         continue;
       }
     }
@@ -329,11 +366,19 @@ pub fn from_query(
     p.grayscale = Some(v == "1" || v.eq_ignore_ascii_case("true"));
   }
   if let Some(v) = query.get("t") {
-    p.t = Some(
-      v.parse::<f32>()
-        .map_err(|_| ProxyError::InvalidParams("invalid t".to_string()))?
-        .max(0.0),
-    );
+    if v == "auto" {
+      p.t = Some(SeekMode::Auto);
+    } else if let Some(rel) = v.strip_suffix('r') {
+      let ratio = rel
+        .parse::<f32>()
+        .map_err(|_| ProxyError::InvalidParams("invalid t".to_string()))?;
+      p.t = Some(SeekMode::Relative(ratio.clamp(0.0, 1.0)));
+    } else {
+      let secs = v
+        .parse::<f32>()
+        .map_err(|_| ProxyError::InvalidParams("invalid t".to_string()))?;
+      p.t = Some(SeekMode::Absolute(secs.max(0.0)));
+    }
   }
   p.w = p.w.map(|v| v.min(MAX_DIMENSION));
   p.h = p.h.map(|v| v.min(MAX_DIMENSION));
@@ -445,7 +490,7 @@ mod tests {
   #[test]
   fn test_t_in_canonical_string() {
     let params = TransformParams {
-      t: Some(5.0),
+      t: Some(SeekMode::Absolute(5.0)),
       ..Default::default()
     };
     let s = params.canonical_string("https://example.com/v.mp4");
@@ -455,7 +500,7 @@ mod tests {
   #[test]
   fn test_has_transforms_t_only() {
     let params = TransformParams {
-      t: Some(3.0),
+      t: Some(SeekMode::Absolute(3.0)),
       ..Default::default()
     };
     assert!(params.has_transforms());
@@ -490,7 +535,7 @@ mod tests {
     let mut map = std::collections::HashMap::new();
     map.insert("t".to_string(), "2.5".to_string());
     let p = super::from_query(&map).unwrap();
-    assert_eq!(p.t, Some(2.5));
+    assert_eq!(p.t, Some(SeekMode::Absolute(2.5)));
   }
 
   #[test]
@@ -498,27 +543,27 @@ mod tests {
     let mut map = std::collections::HashMap::new();
     map.insert("t".to_string(), "-1.0".to_string());
     let p = super::from_query(&map).unwrap();
-    assert_eq!(p.t, Some(0.0));
+    assert_eq!(p.t, Some(SeekMode::Absolute(0.0)));
   }
 
   #[test]
   fn test_t_from_path() {
     let (params, _) = TransformParams::from_path("t:5.0/https://example.com/v.mp4").unwrap();
-    assert_eq!(params.t, Some(5.0));
+    assert_eq!(params.t, Some(SeekMode::Absolute(5.0)));
   }
 
   #[test]
   fn test_t_merge_from() {
     let mut base = TransformParams {
-      t: Some(1.0),
+      t: Some(SeekMode::Absolute(1.0)),
       ..Default::default()
     };
     let other = TransformParams {
-      t: Some(9.0),
+      t: Some(SeekMode::Absolute(9.0)),
       ..Default::default()
     };
     base.merge_from(other);
-    assert_eq!(base.t, Some(9.0));
+    assert_eq!(base.t, Some(SeekMode::Absolute(9.0)));
   }
 
   #[test]
@@ -583,5 +628,75 @@ mod tests {
     assert_eq!(params.w, Some(400));
     assert_eq!(params.format, Some("webp".to_string()));
     assert_eq!(params.grayscale, Some(true));
+  }
+
+  #[test]
+  fn test_seek_mode_absolute_path() {
+    let (p, _) = TransformParams::from_path("t:5.0/https://example.com/v.mp4").unwrap();
+    assert!(matches!(p.t, Some(SeekMode::Absolute(v)) if (v - 5.0).abs() < f32::EPSILON));
+  }
+
+  #[test]
+  fn test_seek_mode_relative_path() {
+    let (p, _) = TransformParams::from_path("t:0.5r/https://example.com/v.mp4").unwrap();
+    assert!(matches!(p.t, Some(SeekMode::Relative(v)) if (v - 0.5).abs() < f32::EPSILON));
+  }
+
+  #[test]
+  fn test_seek_mode_auto_path() {
+    let (p, _) = TransformParams::from_path("t:auto/https://example.com/v.mp4").unwrap();
+    assert!(matches!(p.t, Some(SeekMode::Auto)));
+  }
+
+  #[test]
+  fn test_seek_mode_relative_clamped_above_one() {
+    let (p, _) = TransformParams::from_path("t:1.5r/https://example.com/v.mp4").unwrap();
+    assert!(matches!(p.t, Some(SeekMode::Relative(v)) if (v - 1.0).abs() < f32::EPSILON));
+  }
+
+  #[test]
+  fn test_seek_mode_absolute_negative_clamped() {
+    let (p, _) = TransformParams::from_path("t:-1.0/https://example.com/v.mp4").unwrap();
+    assert!(matches!(p.t, Some(SeekMode::Absolute(v)) if (v - 0.0).abs() < f32::EPSILON));
+  }
+
+  #[test]
+  fn test_seek_mode_auto_query() {
+    let mut map = std::collections::HashMap::new();
+    map.insert("t".to_string(), "auto".to_string());
+    let p = super::from_query(&map).unwrap();
+    assert!(matches!(p.t, Some(SeekMode::Auto)));
+  }
+
+  #[test]
+  fn test_seek_mode_relative_query() {
+    let mut map = std::collections::HashMap::new();
+    map.insert("t".to_string(), "0.3r".to_string());
+    let p = super::from_query(&map).unwrap();
+    assert!(matches!(p.t, Some(SeekMode::Relative(v)) if (v - 0.3).abs() < 1e-5));
+  }
+
+  #[test]
+  fn test_seek_mode_canonical_auto() {
+    let p = TransformParams { t: Some(SeekMode::Auto), ..Default::default() };
+    assert_eq!(p.canonical_string("u"), "t=auto:u");
+  }
+
+  #[test]
+  fn test_seek_mode_canonical_relative() {
+    let p = TransformParams { t: Some(SeekMode::Relative(0.5)), ..Default::default() };
+    assert_eq!(p.canonical_string("u"), "t=0.5r:u");
+  }
+
+  #[test]
+  fn test_seek_mode_canonical_absolute() {
+    let p = TransformParams { t: Some(SeekMode::Absolute(5.0)), ..Default::default() };
+    assert_eq!(p.canonical_string("u"), "t=5:u");
+  }
+
+  #[test]
+  fn test_has_transforms_seek_auto() {
+    let p = TransformParams { t: Some(SeekMode::Auto), ..Default::default() };
+    assert!(p.has_transforms());
   }
 }

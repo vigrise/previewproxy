@@ -229,7 +229,10 @@ impl ProxyService {
     if is_video {
       match crate::modules::proxy::sources::video::extract_frame(
         &src_bytes,
-        params.t.unwrap_or(0.0),
+        match params.t {
+          Some(crate::modules::proxy::params::SeekMode::Absolute(s)) => s,
+          _ => 0.0,
+        },
         &self.ffmpeg_path,
       )
       .await
