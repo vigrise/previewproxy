@@ -106,7 +106,7 @@ Installs to `%LOCALAPPDATA%\previewproxy\bin` and adds it to your user `PATH`. O
 docker run -d -p 8080:8080 \
   -e ALLOWED_HOSTS=img.example.com \
   -e HMAC_KEY=mysecret \
-  ghcr.io/ViGrise/previewproxy:latest
+  ghcr.io/vigrise/previewproxy:latest
 ```
 
 Or with Docker Compose:
