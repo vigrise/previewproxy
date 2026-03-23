@@ -223,4 +223,66 @@ mod concurrency_tests {
     let _ = app.oneshot(req).await.unwrap();
     assert_eq!(sem.available_permits(), 1);
   }
+
+  #[tokio::test]
+  async fn test_permit_held_during_stream_released_after_exhaustion() {
+    use wiremock::{matchers::method, Mock, MockServer, ResponseTemplate};
+    use http_body_util::BodyExt;
+
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+      .respond_with(
+        ResponseTemplate::new(200)
+          .set_body_bytes(vec![1u8; 20])
+          .insert_header("content-type", "image/png"),
+      )
+      .mount(&server)
+      .await;
+
+    let sem = Arc::new(Semaphore::new(1));
+    let state = AppState {
+      concurrency: sem.clone(),
+      ..make_state(1)
+    };
+    assert_eq!(sem.available_permits(), 1);
+
+    let url = format!("/proxy?url={}", urlencoding::encode(&server.uri()));
+    let app = crate::modules::router(state);
+    let req = axum::http::Request::builder()
+      .uri(&url)
+      .body(axum::body::Body::empty())
+      .unwrap();
+
+    let resp = app.oneshot(req).await.unwrap();
+
+    let _ = resp.into_body().collect().await.unwrap();
+
+    assert_eq!(sem.available_permits(), 1, "permit must be released after stream body is consumed");
+  }
+
+  #[tokio::test]
+  async fn test_streaming_x_cache_miss_header() {
+    use wiremock::{matchers::method, Mock, MockServer, ResponseTemplate};
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+      .respond_with(
+        ResponseTemplate::new(200)
+          .set_body_bytes(vec![1u8; 10])
+          .insert_header("content-type", "image/png"),
+      )
+      .mount(&server)
+      .await;
+    let state = make_state(256);
+    let url = format!("/proxy?url={}", urlencoding::encode(&server.uri()));
+    let app = crate::modules::router(state);
+    let req = axum::http::Request::builder()
+      .uri(&url)
+      .body(axum::body::Body::empty())
+      .unwrap();
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(
+      resp.headers().get("x-cache").and_then(|v| v.to_str().ok()),
+      Some("MISS")
+    );
+  }
 }
