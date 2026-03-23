@@ -55,7 +55,6 @@ bytemuck = { version = "1", features = ["derive"] }
 resvg = "0.47"
 psd = "0.3"
 jxl-oxide = "0.12"
-jpegxl-rs = { version = "0.14", features = ["vendored"] }
 libheif-rs = { version = "2.7", default-features = false, features = ["v1_17"] }
 pdfium-render = "0.8.26"
 tempfile = "3"
@@ -73,6 +72,12 @@ aws-sdk-s3 = "1"
 aws-config = "1"
 urlencoding = "2"
 url = "2"
+
+[target.'cfg(not(target_os = "windows"))'.dependencies]
+jpegxl-rs = { version = "0.14", features = ["vendored"] }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+jpegxl-rs = { version = "0.14" }
 
 [dev-dependencies]
 tower = { version = "0.5", features = ["util"] }
