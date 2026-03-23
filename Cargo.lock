@@ -3177,6 +3177,7 @@ dependencies = [
  "axum",
  "base64",
  "bytemuck",
+ "bytes",
  "clap",
  "dashmap",
  "dotenvy",

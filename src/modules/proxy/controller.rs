@@ -4,8 +4,9 @@ use crate::modules::cache::manager::CacheHit;
 use crate::modules::cache::memory::CacheEntry;
 use crate::modules::proxy::{
   params::{from_query, TransformParams},
-  service::ProxyService,
+  service::{ProcessResult, ProxyService},
 };
+use futures::StreamExt;
 use crate::modules::AppState;
 use axum::{
   extract::{Path, Query, State},
@@ -75,8 +76,8 @@ async fn handle_query_inner(
     .ok_or_else(|| ProxyError::InvalidParams("missing `url` query param".to_string()))?;
   let params = from_query(&query)?;
   let service = ProxyService::new(&state);
-  let (entry, hit) = service.process(params, url, permit).await?;
-  Ok(build_response(entry, hit, &state.cfg))
+  let result = service.process(params, url, permit).await?;
+  Ok(build_response(result, &state.cfg))
 }
 
 async fn handle_path_inner(
@@ -91,11 +92,27 @@ async fn handle_path_inner(
     params.merge_from(query_params);
   }
   let svc = ProxyService::new(&state);
-  let (entry, hit) = svc.process(params, url, permit).await?;
-  Ok(build_response(entry, hit, &state.cfg))
+  let result = svc.process(params, url, permit).await?;
+  Ok(build_response(result, &state.cfg))
 }
 
-fn build_response(entry: CacheEntry, hit: CacheHit, cfg: &Config) -> Response {
+fn build_response(result: ProcessResult, cfg: &Config) -> Response {
+  match result {
+    ProcessResult::Cached(entry, hit) => build_cached_response(entry, hit, cfg),
+    ProcessResult::Stream { body, content_type } => {
+      let ct: axum::http::HeaderValue = content_type
+        .parse()
+        .unwrap_or_else(|_| "application/octet-stream".parse().unwrap());
+      let mut headers = axum::http::HeaderMap::new();
+      headers.insert(axum::http::header::CONTENT_TYPE, ct);
+      headers.insert("x-cache", "MISS".parse().unwrap());
+      let mapped = body.map(|r| r.map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>));
+      (headers, axum::body::Body::from_stream(mapped)).into_response()
+    }
+  }
+}
+
+fn build_cached_response(entry: CacheEntry, hit: CacheHit, cfg: &Config) -> Response {
   let x_cache = match hit {
     CacheHit::L1 => "HIT-L1",
     CacheHit::L2 => "HIT-L2",

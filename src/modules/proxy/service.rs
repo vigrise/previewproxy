@@ -5,16 +5,39 @@ use crate::modules::proxy::{fetchable::Fetchable, params::TransformParams};
 use crate::modules::security::{allowlist::Allowlist, hmac};
 use crate::modules::transform::pipeline::{self, resolve_content_type};
 use crate::modules::AppState;
+use bytes::Bytes;
 use std::sync::Arc;
-use tokio::sync::OwnedSemaphorePermit;
+use tokio::sync::{mpsc, OwnedSemaphorePermit};
 use url::Url;
+
+pub enum ProcessResult {
+  Cached(CacheEntry, CacheHit),
+  Stream {
+    /// Client-facing stream. Holds permit; drops permit when stream ends.
+    body: futures::stream::BoxStream<'static, Result<Bytes, ProxyError>>,
+    content_type: String,
+  },
+}
+
+impl std::fmt::Debug for ProcessResult {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    match self {
+      ProcessResult::Cached(_, _) => write!(f, "ProcessResult::Cached"),
+      ProcessResult::Stream { content_type, .. } => {
+        write!(f, "ProcessResult::Stream {{ content_type: {:?} }}", content_type)
+      }
+    }
+  }
+}
 
 pub struct ProxyService {
   fetcher: Arc<dyn Fetchable>,
+  http_fetcher: Arc<crate::modules::proxy::sources::http::HttpFetcher>,
   cache: Arc<CacheManager>,
   allowlist: Allowlist,
   hmac_key: Option<String>,
   ffmpeg_path: String,
+  max_source_bytes: u64,
 }
 
 impl ProxyService {
@@ -22,10 +45,12 @@ impl ProxyService {
     let allowlist = Allowlist::new(state.cfg.allowed_hosts.clone());
     Self {
       fetcher: state.fetcher.clone(),
+      http_fetcher: state.http_fetcher.clone(),
       cache: state.cache.clone(),
       allowlist,
       hmac_key: state.cfg.hmac_key.clone(),
       ffmpeg_path: state.cfg.ffmpeg_path.clone(),
+      max_source_bytes: state.cfg.max_source_bytes,
     }
   }
 
@@ -33,8 +58,8 @@ impl ProxyService {
     &self,
     params: TransformParams,
     image_url: String,
-    _permit: OwnedSemaphorePermit, // temporary: will be used in streaming path (Task 5)
-  ) -> Result<(CacheEntry, CacheHit), ProxyError> {
+    permit: OwnedSemaphorePermit,
+  ) -> Result<ProcessResult, ProxyError> {
     // 1. Allowlist check for image URL host (HTTP/HTTPS only)
     if image_url.starts_with("http://") || image_url.starts_with("https://") {
       let image_host = Url::parse(&image_url)
@@ -78,16 +103,113 @@ impl ProxyService {
 
     let (cached, hit) = self.cache.get(&prelim_key).await;
     if let Some(entry) = cached {
-      return Ok((entry, hit));
+      return Ok(ProcessResult::Cached(entry, hit));
     }
 
     // 6. Singleflight: check if already inflight, or start one
     if self.cache.inflight().is_inflight(&prelim_key) {
       if let Some(result) = self.cache.inflight().wait(&prelim_key).await {
-        return result.map(|entry| (entry, CacheHit::Miss));
+        return result.map(|entry| ProcessResult::Cached(entry, CacheHit::Miss));
       }
     }
     let guard = self.cache.inflight().start(prelim_key.clone());
+
+    // --- Streaming path: HTTP source, no transforms ---
+    let is_http = image_url.starts_with("http://") || image_url.starts_with("https://");
+    if is_http && !params.has_transforms() {
+      let resp = match self.http_fetcher.fetch_streaming(&image_url).await {
+        Ok(r) => r,
+        Err(e) => {
+          guard.complete(Err(e.clone()));
+          return Err(e);
+        }
+      };
+
+      let content_type = resp
+        .headers()
+        .get(reqwest::header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.split(';').next().unwrap_or(s).trim().to_string())
+        .unwrap_or_default();
+
+      if content_type.starts_with("video/") || content_type == "application/pdf" {
+        drop(resp);
+        // fall through to buffered path
+      } else if content_type.starts_with("image/") {
+        let (client_tx, client_rx) = mpsc::channel::<Bytes>(8);
+        let (cache_tx, mut cache_rx) = mpsc::channel::<Result<Bytes, ProxyError>>(8);
+
+        // Tee task: drives reqwest body -> both channels
+        tokio::spawn(async move {
+          use futures::StreamExt;
+          let mut s = resp.bytes_stream();
+          while let Some(chunk) = s.next().await {
+            match chunk {
+              Ok(b) => {
+                let _ = cache_tx.send(Ok(b.clone())).await;
+                if client_tx.send(b).await.is_err() {
+                  let _ = cache_tx.send(Err(ProxyError::InternalError("client_disconnected".to_string()))).await;
+                  return;
+                }
+              }
+              Err(e) => {
+                let pe = ProxyError::InternalError(e.to_string());
+                let _ = cache_tx.send(Err(pe)).await;
+                return;
+              }
+            }
+          }
+        });
+
+        // Cache writer task: accumulates, writes on clean close, discards on error
+        let cache = self.cache.clone();
+        let max_bytes = self.max_source_bytes;
+        let content_type_bg = content_type.clone();
+        let canonical_bg = canonical.clone();
+        tokio::spawn(async move {
+          let mut buf: Vec<u8> = Vec::new();
+          loop {
+            match cache_rx.recv().await {
+              Some(Ok(b)) => {
+                buf.extend_from_slice(&b);
+                if buf.len() as u64 > max_bytes {
+                  guard.complete(Err(ProxyError::SourceTooLarge));
+                  return;
+                }
+              }
+              Some(Err(e)) => {
+                guard.complete(Err(e));
+                return;
+              }
+              None => {
+                let entry = CacheEntry { bytes: buf, content_type: content_type_bg.clone() };
+                let final_key = CacheManager::final_key(&canonical_bg, &content_type_bg);
+                cache.set(&final_key, entry.clone()).await;
+                guard.complete(Ok(entry));
+                return;
+              }
+            }
+          }
+        });
+
+        let stream = futures::stream::unfold(
+          (client_rx, permit),
+          |(mut rx, permit)| async move {
+            rx.recv().await.map(|b| (Ok::<Bytes, ProxyError>(b), (rx, permit)))
+          },
+        );
+
+        return Ok(ProcessResult::Stream {
+          body: Box::pin(stream),
+          content_type,
+        });
+      } else {
+        guard.complete(Err(ProxyError::NotAnImage));
+        return Err(ProxyError::NotAnImage);
+      }
+    }
+    // --- End streaming path (video/PDF fell through to here) ---
+    drop(permit);
 
     // 7. Fetch (Issue 4 fix: pass original error to guard)
     let fetch_result = self.fetcher.fetch(&image_url).await;
@@ -164,8 +286,8 @@ impl ProxyService {
     // 10. Call guard.complete(Ok(entry.clone()))
     guard.complete(Ok(entry.clone()));
 
-    // 11. Return Ok((entry, CacheHit::Miss))
-    Ok((entry, CacheHit::Miss))
+    // 11. Return Ok(ProcessResult::Cached(entry, CacheHit::Miss))
+    Ok(ProcessResult::Cached(entry, CacheHit::Miss))
   }
 }
 
@@ -229,10 +351,17 @@ mod tests {
     let cache = CacheManager::new(&cfg);
     ProxyService {
       fetcher,
+      http_fetcher: Arc::new(
+        crate::modules::proxy::sources::http::HttpFetcher::new(
+          10, 1_000_000,
+          Arc::new(crate::modules::security::allowlist::Allowlist::new(vec![]))
+        ).with_private_ip_check(false)
+      ),
       cache,
       allowlist: Allowlist::new(allowed_hosts),
       hmac_key: None,
       ffmpeg_path: "ffmpeg".to_string(),
+      max_source_bytes: 1_000_000,
     }
   }
 
@@ -298,17 +427,24 @@ mod tests {
     let cache = CacheManager::new(&cfg);
     let svc = ProxyService {
       fetcher,
+      http_fetcher: Arc::new(
+        crate::modules::proxy::sources::http::HttpFetcher::new(
+          10, 1_000_000,
+          Arc::new(crate::modules::security::allowlist::Allowlist::new(vec![]))
+        ).with_private_ip_check(false)
+      ),
       cache,
       allowlist: Allowlist::new(vec![]),
       hmac_key: None,
       ffmpeg_path: "ffmpeg".to_string(),
+      max_source_bytes: 1_000_000,
     };
 
     let params = TransformParams::default();
     let result = svc
       .process(
         params,
-        "https://example.com/v.mp4".to_string(),
+        "s3:/v.mp4".to_string(),
         Arc::new(tokio::sync::Semaphore::new(1)).try_acquire_owned().unwrap(),
       )
       .await;
@@ -316,5 +452,246 @@ mod tests {
       matches!(result, Err(ProxyError::VideoDecodeError)),
       "expected VideoDecodeError for invalid video content"
     );
+  }
+}
+
+#[cfg(test)]
+mod streaming_tests {
+  use super::*;
+  use crate::modules::cache::manager::CacheManager;
+  use crate::modules::proxy::params::TransformParams;
+  use crate::modules::proxy::sources::http::HttpFetcher;
+  use crate::modules::security::allowlist::Allowlist;
+  use futures::StreamExt;
+  use std::sync::Arc;
+  use tokio::sync::Semaphore;
+  use wiremock::{matchers::method, Mock, MockServer, ResponseTemplate};
+
+  fn make_svc(max_bytes: u64) -> (ProxyService, Arc<CacheManager>) {
+    let cfg = Arc::new(crate::common::config::Configuration {
+      env: crate::common::config::Environment::Development,
+      listen_address: "0.0.0.0:8080".parse().unwrap(),
+      app_port: 8080,
+      hmac_key: None,
+      allowed_hosts: vec![],
+      fetch_timeout_secs: 10,
+      max_source_bytes: max_bytes,
+      cache_memory_max_mb: 16,
+      cache_memory_ttl_secs: 60,
+      cache_dir: "/tmp/previewproxy-svc-stream-test".to_string(),
+      cache_disk_ttl_secs: 60,
+      cache_disk_max_mb: None,
+      cache_cleanup_interval_secs: 600,
+      s3_enabled: false,
+      s3_bucket: None,
+      s3_region: "us-east-1".to_string(),
+      s3_access_key_id: None,
+      s3_secret_access_key: None,
+      s3_endpoint: None,
+      local_enabled: false,
+      local_base_dir: None,
+      ffmpeg_path: "ffmpeg".to_string(),
+      cors_allow_origin: vec!["*".to_string()],
+      cors_max_age_secs: 600,
+      max_concurrent_requests: 256,
+    });
+    let http = Arc::new(
+      HttpFetcher::new(10, max_bytes, Arc::new(Allowlist::new(vec![])))
+        .with_private_ip_check(false),
+    );
+    let cache = CacheManager::new(&cfg);
+    let svc = ProxyService {
+      fetcher: http.clone(),
+      http_fetcher: http,
+      cache: cache.clone(),
+      allowlist: Allowlist::new(vec![]),
+      hmac_key: None,
+      ffmpeg_path: "ffmpeg".to_string(),
+      max_source_bytes: max_bytes,
+    };
+    (svc, cache)
+  }
+
+  fn permit() -> tokio::sync::OwnedSemaphorePermit {
+    Arc::new(Semaphore::new(1)).try_acquire_owned().unwrap()
+  }
+
+  #[tokio::test]
+  async fn test_streaming_passthrough_no_transforms() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+      .respond_with(
+        ResponseTemplate::new(200)
+          .set_body_bytes(vec![1u8; 50])
+          .insert_header("content-type", "image/png"),
+      )
+      .mount(&server)
+      .await;
+    let (svc, _) = make_svc(1_000_000);
+    let result = svc
+      .process(TransformParams::default(), server.uri(), permit())
+      .await
+      .unwrap();
+    assert!(matches!(result, ProcessResult::Stream { .. }));
+  }
+
+  #[tokio::test]
+  async fn test_streaming_falls_back_for_non_image() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+      .respond_with(
+        ResponseTemplate::new(200)
+          .set_body_bytes(b"<html>".to_vec())
+          .insert_header("content-type", "text/html"),
+      )
+      .mount(&server)
+      .await;
+    let (svc, _) = make_svc(1_000_000);
+    let result = svc
+      .process(TransformParams::default(), server.uri(), permit())
+      .await;
+    assert!(matches!(result, Err(ProxyError::NotAnImage)));
+  }
+
+  #[tokio::test]
+  async fn test_streaming_falls_back_for_video() {
+    let server = MockServer::start().await;
+    let mut body = vec![0x00, 0x00, 0x00, 0x20];
+    body.extend_from_slice(b"ftyp");
+    body.extend(vec![0u8; 100]);
+    Mock::given(method("GET"))
+      .respond_with(
+        ResponseTemplate::new(200)
+          .set_body_bytes(body)
+          .insert_header("content-type", "video/mp4"),
+      )
+      .mount(&server)
+      .await;
+    let (svc, _) = make_svc(1_000_000);
+    let result = svc
+      .process(TransformParams::default(), server.uri(), permit())
+      .await;
+    assert!(
+      matches!(result, Err(ProxyError::VideoDecodeError)),
+      "expected VideoDecodeError proving video fell through to buffered path, got: {:?}",
+      result
+    );
+  }
+
+  #[tokio::test]
+  async fn test_streaming_falls_back_for_pdf() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+      .respond_with(
+        ResponseTemplate::new(200)
+          .set_body_bytes(b"%PDF-1.4 fake".to_vec())
+          .insert_header("content-type", "application/pdf"),
+      )
+      .mount(&server)
+      .await;
+    let (svc, _) = make_svc(1_000_000);
+    let result = svc
+      .process(TransformParams::default(), server.uri(), permit())
+      .await;
+    assert!(matches!(result, Err(ProxyError::PdfRenderError)));
+  }
+
+  #[tokio::test]
+  async fn test_cache_not_written_when_client_drops_stream_early() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+      .respond_with(
+        ResponseTemplate::new(200)
+          .set_body_bytes(vec![1u8; 100])
+          .insert_header("content-type", "image/png"),
+      )
+      .mount(&server)
+      .await;
+    let (svc, cache) = make_svc(1_000_000);
+    let url = server.uri();
+    let result = svc
+      .process(TransformParams::default(), url.clone(), permit())
+      .await
+      .unwrap();
+    if let ProcessResult::Stream { body, .. } = result {
+      drop(body);
+      tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+    }
+    let canonical = TransformParams::default().canonical_string(&url);
+    let final_key = CacheManager::final_key(&canonical, "image/png");
+    let (entry, _) = cache.get(&final_key).await;
+    assert!(
+      entry.is_none(),
+      "cache must not be written when stream is dropped before exhaustion"
+    );
+  }
+
+  #[tokio::test]
+  async fn test_streaming_falls_back_for_s3() {
+    let (svc, _) = make_svc(1_000_000);
+    let result = svc
+      .process(
+        TransformParams::default(),
+        "s3:/some/key.jpg".to_string(),
+        permit(),
+      )
+      .await;
+    assert!(!matches!(result, Ok(ProcessResult::Stream { .. })));
+  }
+
+  #[tokio::test]
+  async fn test_cache_written_after_clean_stream() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+      .respond_with(
+        ResponseTemplate::new(200)
+          .set_body_bytes(vec![1u8; 20])
+          .insert_header("content-type", "image/png"),
+      )
+      .mount(&server)
+      .await;
+    let (svc, cache) = make_svc(1_000_000);
+    let url = server.uri();
+    let result = svc
+      .process(TransformParams::default(), url.clone(), permit())
+      .await
+      .unwrap();
+    if let ProcessResult::Stream { mut body, .. } = result {
+      while body.next().await.is_some() {}
+      drop(body);
+      tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+    }
+    let canonical = TransformParams::default().canonical_string(&url);
+    let final_key = CacheManager::final_key(&canonical, "image/png");
+    let (entry, _) = cache.get(&final_key).await;
+    assert!(entry.is_some(), "cache entry should exist after clean stream");
+  }
+
+  #[tokio::test]
+  async fn test_cache_not_written_when_max_bytes_exceeded() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+      .respond_with(
+        ResponseTemplate::new(200)
+          .set_body_bytes(vec![1u8; 200])
+          .insert_header("content-type", "image/png"),
+      )
+      .mount(&server)
+      .await;
+    let (svc, cache) = make_svc(50);
+    let url = server.uri();
+    let result = svc
+      .process(TransformParams::default(), url.clone(), permit())
+      .await
+      .unwrap();
+    if let ProcessResult::Stream { mut body, .. } = result {
+      while body.next().await.is_some() {}
+      drop(body);
+      tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+    }
+    let canonical = TransformParams::default().canonical_string(&url);
+    let final_key = CacheManager::final_key(&canonical, "image/png");
+    let (entry, _) = cache.get(&final_key).await;
+    assert!(entry.is_none(), "cache must not be written when size limit exceeded");
   }
 }
