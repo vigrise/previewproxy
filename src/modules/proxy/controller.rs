@@ -121,7 +121,6 @@ fn build_response(entry: CacheEntry, hit: CacheHit, cfg: &Config) -> Response {
 mod concurrency_tests {
   use crate::common::config::Configuration;
   use crate::modules::cache::manager::CacheManager;
-  use crate::modules::proxy::fetchable::Fetchable;
   use crate::modules::proxy::sources::http::HttpFetcher;
   use crate::modules::security::allowlist::Allowlist;
   use crate::modules::AppState;
