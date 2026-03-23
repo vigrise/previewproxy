@@ -27,7 +27,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             pkg-config cmake nasm ffmpeg \
-            libdav1d-dev libheif-dev libjxl-dev
+            libdav1d-dev libheif-dev
 
       - name: Run tests
         run: cargo test
@@ -82,15 +82,15 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             pkg-config cmake nasm \
-            libdav1d-dev libheif-dev libjxl-dev
+            libdav1d-dev libheif-dev
 
       - name: Install native dependencies (macOS)
         if: runner.os == 'macOS'
-        run: brew install pkg-config cmake nasm dav1d jpeg-xl libheif
+        run: brew install pkg-config cmake nasm dav1d libheif
 
       - name: Install native dependencies (Windows)
         if: runner.os == 'Windows'
-        run: vcpkg install dav1d libjxl libheif --triplet x64-windows-static-md
+        run: vcpkg install dav1d libheif --triplet x64-windows-static-md
 
       - name: Build
         env:
