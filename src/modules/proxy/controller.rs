@@ -6,7 +6,6 @@ use crate::modules::proxy::{
   params::{from_query, TransformParams},
   service::{ProcessResult, ProxyService},
 };
-use futures::StreamExt;
 use crate::modules::AppState;
 use axum::{
   extract::{Path, Query, State},
@@ -15,6 +14,7 @@ use axum::{
   routing::get,
   Router,
 };
+use futures::StreamExt;
 use std::collections::HashMap;
 use tokio::sync::OwnedSemaphorePermit;
 
@@ -33,7 +33,10 @@ async fn handle_query(
     Err(_) => {
       return (
         StatusCode::SERVICE_UNAVAILABLE,
-        [(axum::http::header::HeaderName::from_static("retry-after"), "1")],
+        [(
+          axum::http::header::HeaderName::from_static("retry-after"),
+          "1",
+        )],
         axum::body::Body::empty(),
       )
         .into_response();
@@ -54,7 +57,10 @@ async fn handle_path(
     Err(_) => {
       return (
         StatusCode::SERVICE_UNAVAILABLE,
-        [(axum::http::header::HeaderName::from_static("retry-after"), "1")],
+        [(
+          axum::http::header::HeaderName::from_static("retry-after"),
+          "1",
+        )],
         axum::body::Body::empty(),
       )
         .into_response();
@@ -106,7 +112,8 @@ fn build_response(result: ProcessResult, cfg: &Config) -> Response {
       let mut headers = axum::http::HeaderMap::new();
       headers.insert(axum::http::header::CONTENT_TYPE, ct);
       headers.insert("x-cache", "MISS".parse().unwrap());
-      let mapped = body.map(|r| r.map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>));
+      let mapped =
+        body.map(|r| r.map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>));
       (headers, axum::body::Body::from_stream(mapped)).into_response()
     }
   }
@@ -171,6 +178,7 @@ mod concurrency_tests {
       local_enabled: false,
       local_base_dir: None,
       ffmpeg_path: "ffmpeg".to_string(),
+      ffprobe_path: "ffprobe".to_string(),
       cors_allow_origin: vec!["*".to_string()],
       cors_max_age_secs: 600,
       max_concurrent_requests: permits,
@@ -202,7 +210,10 @@ mod concurrency_tests {
     let response = app.oneshot(req).await.unwrap();
     assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
     assert_eq!(
-      response.headers().get("retry-after").and_then(|v| v.to_str().ok()),
+      response
+        .headers()
+        .get("retry-after")
+        .and_then(|v| v.to_str().ok()),
       Some("1")
     );
   }
@@ -226,8 +237,8 @@ mod concurrency_tests {
 
   #[tokio::test]
   async fn test_permit_held_during_stream_released_after_exhaustion() {
-    use wiremock::{matchers::method, Mock, MockServer, ResponseTemplate};
     use http_body_util::BodyExt;
+    use wiremock::{matchers::method, Mock, MockServer, ResponseTemplate};
 
     let server = MockServer::start().await;
     Mock::given(method("GET"))
@@ -257,7 +268,11 @@ mod concurrency_tests {
 
     let _ = resp.into_body().collect().await.unwrap();
 
-    assert_eq!(sem.available_permits(), 1, "permit must be released after stream body is consumed");
+    assert_eq!(
+      sem.available_permits(),
+      1,
+      "permit must be released after stream body is consumed"
+    );
   }
 
   #[tokio::test]

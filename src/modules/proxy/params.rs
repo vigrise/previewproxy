@@ -494,7 +494,10 @@ mod tests {
       ..Default::default()
     };
     let s = params.canonical_string("https://example.com/v.mp4");
-    assert!(s.contains("seek=5"), "canonical string must include seek: {s}");
+    assert!(
+      s.contains("seek=5"),
+      "canonical string must include seek: {s}"
+    );
   }
 
   #[test]
@@ -678,25 +681,37 @@ mod tests {
 
   #[test]
   fn test_seek_mode_canonical_auto() {
-    let p = TransformParams { seek: Some(SeekMode::Auto), ..Default::default() };
+    let p = TransformParams {
+      seek: Some(SeekMode::Auto),
+      ..Default::default()
+    };
     assert_eq!(p.canonical_string("u"), "seek=auto:u");
   }
 
   #[test]
   fn test_seek_mode_canonical_relative() {
-    let p = TransformParams { seek: Some(SeekMode::Relative(0.5)), ..Default::default() };
+    let p = TransformParams {
+      seek: Some(SeekMode::Relative(0.5)),
+      ..Default::default()
+    };
     assert_eq!(p.canonical_string("u"), "seek=0.5r:u");
   }
 
   #[test]
   fn test_seek_mode_canonical_absolute() {
-    let p = TransformParams { seek: Some(SeekMode::Absolute(5.0)), ..Default::default() };
+    let p = TransformParams {
+      seek: Some(SeekMode::Absolute(5.0)),
+      ..Default::default()
+    };
     assert_eq!(p.canonical_string("u"), "seek=5:u");
   }
 
   #[test]
   fn test_has_transforms_seek_auto() {
-    let p = TransformParams { seek: Some(SeekMode::Auto), ..Default::default() };
+    let p = TransformParams {
+      seek: Some(SeekMode::Auto),
+      ..Default::default()
+    };
     assert!(p.has_transforms());
   }
 }

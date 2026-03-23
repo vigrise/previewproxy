@@ -4,8 +4,8 @@
   <a href="https://www.rust-lang.org/"><img src="https://img.shields.io/badge/rust-stable-orange.svg?logo=rust" alt="Rust"></a>
   <a href="https://github.com/tokio-rs/axum"><img src="https://img.shields.io/badge/axum-0.8-blue.svg" alt="Axum"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-blue.svg" alt="License: Apache 2.0"></a>
-  <a href="https://github.com/vigrise/previewproxy/stargazers"><img src="https://img.shields.io/github/stars/vigrise/previewproxy?style=social" alt="GitHub stars"></a>
-  <a href="https://github.com/vigrise/previewproxy/issues"><img src="https://img.shields.io/github/issues/vigrise/previewproxy" alt="GitHub issues"></a>
+  <a href="https://github.com/ViGrise/previewproxy/stargazers"><img src="https://img.shields.io/github/stars/ViGrise/previewproxy?style=social" alt="GitHub stars"></a>
+  <a href="https://github.com/ViGrise/previewproxy/issues"><img src="https://img.shields.io/github/issues/ViGrise/previewproxy" alt="GitHub issues"></a>
 </p>
 
 A fast, self-hosted image proxy written in Rust. Fetch images from HTTP URLs, S3 buckets, or local storage - transform them on-the-fly and serve them with multi-tier caching.
@@ -75,9 +75,9 @@ Query params take precedence when both styles are combined.
 ### Linux / macOS
 
 ```shell
-curl -o- https://raw.githubusercontent.com/vigrise/previewproxy/main/install.sh | bash
+curl -o- https://raw.githubusercontent.com/ViGrise/previewproxy/main/install.sh | sudo bash
 # or
-wget -qO- https://raw.githubusercontent.com/vigrise/previewproxy/main/install.sh | bash
+wget -qO- https://raw.githubusercontent.com/ViGrise/previewproxy/main/install.sh | sudo bash
 ```
 
 Installs to `/usr/local/bin`. Override with env vars:
@@ -90,7 +90,7 @@ Installs to `/usr/local/bin`. Override with env vars:
 ### Windows
 
 ```powershell
-irm https://raw.githubusercontent.com/vigrise/previewproxy/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/ViGrise/previewproxy/main/install.ps1 | iex
 ```
 
 Installs to `%LOCALAPPDATA%\previewproxy\bin` and adds it to your user `PATH`. Override with flags:
@@ -106,14 +106,14 @@ Installs to `%LOCALAPPDATA%\previewproxy\bin` and adds it to your user `PATH`. O
 docker run -d -p 8080:8080 \
   -e ALLOWED_HOSTS=img.example.com \
   -e HMAC_KEY=mysecret \
-  ghcr.io/vigrise/previewproxy:latest
+  ghcr.io/ViGrise/previewproxy:latest
 ```
 
 Or with Docker Compose:
 
 ```shell
-curl -O https://raw.githubusercontent.com/vigrise/previewproxy/main/docker-compose.yml
-curl -O https://raw.githubusercontent.com/vigrise/previewproxy/main/.env.sample
+curl -O https://raw.githubusercontent.com/ViGrise/previewproxy/main/docker-compose.yml
+curl -O https://raw.githubusercontent.com/ViGrise/previewproxy/main/.env.sample
 cp .env.sample .env
 # Edit .env as needed
 docker-compose up -d
@@ -224,7 +224,7 @@ cargo clippy
 
 ## Contributing
 
-Contributions are welcome. Please open an issue or pull request at [github.com/vigrise/previewproxy](https://github.com/vigrise/previewproxy).
+Contributions are welcome. Please open an issue or pull request at [github.com/ViGrise/previewproxy](https://github.com/ViGrise/previewproxy).
 
 ## License
 

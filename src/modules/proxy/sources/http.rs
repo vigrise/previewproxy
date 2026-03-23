@@ -127,8 +127,8 @@ impl HttpFetcher {
   /// Caller is responsible for reading or streaming the body.
   pub async fn fetch_streaming(&self, url: &str) -> Result<reqwest::Response, ProxyError> {
     if self.check_private_ips {
-      let parsed = url::Url::parse(url)
-        .map_err(|_| ProxyError::InvalidParams("invalid URL".to_string()))?;
+      let parsed =
+        url::Url::parse(url).map_err(|_| ProxyError::InvalidParams("invalid URL".to_string()))?;
       let host = parsed.host_str().unwrap_or("");
       if let Ok(addrs) = tokio::net::lookup_host(format!("{}:80", host)).await {
         for addr in addrs {

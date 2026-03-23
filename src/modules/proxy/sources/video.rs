@@ -121,18 +121,19 @@ pub async fn probe_duration(bytes: &[u8], ffprobe_bin: &str) -> Result<f32, Prox
 
   if !output.status.success() || output.stdout.is_empty() {
     let snippet = String::from_utf8_lossy(&output.stderr[..output.stderr.len().min(512)]);
-    tracing::warn!("ffprobe failed (status={:?}): {}", output.status.code(), snippet);
+    tracing::warn!(
+      "ffprobe failed (status={:?}): {}",
+      output.status.code(),
+      snippet
+    );
     return Err(ProxyError::VideoDecodeError);
   }
 
   let stdout = String::from_utf8_lossy(&output.stdout);
-  stdout
-    .trim()
-    .parse::<f32>()
-    .map_err(|_| {
-      tracing::warn!("ffprobe returned unparseable duration: {stdout:?}");
-      ProxyError::VideoDecodeError
-    })
+  stdout.trim().parse::<f32>().map_err(|_| {
+    tracing::warn!("ffprobe returned unparseable duration: {stdout:?}");
+    ProxyError::VideoDecodeError
+  })
 }
 
 #[cfg(test)]
@@ -220,13 +221,19 @@ mod tests {
     unsafe { std::env::set_var("PATH", "") };
     let result = probe_duration(&[], "ffprobe").await;
     unsafe { std::env::set_var("PATH", original_path) };
-    assert!(matches!(result, Err(crate::common::errors::ProxyError::VideoDecodeError)));
+    assert!(matches!(
+      result,
+      Err(crate::common::errors::ProxyError::VideoDecodeError)
+    ));
   }
 
   #[tokio::test]
   async fn test_probe_duration_invalid_input() {
     let result = probe_duration(b"not a video", "ffprobe").await;
-    assert!(matches!(result, Err(crate::common::errors::ProxyError::VideoDecodeError)));
+    assert!(matches!(
+      result,
+      Err(crate::common::errors::ProxyError::VideoDecodeError)
+    ));
   }
 
   #[tokio::test]
