@@ -240,7 +240,6 @@ mod tests {
   fn test_max_concurrent_requests_default() {
     std::env::set_var("PORT", "8080");
     std::env::set_var("APP_ENV", "development");
-    std::env::set_var("MAX_CONCURRENT_REQUESTS", "");
     std::env::remove_var("MAX_CONCURRENT_REQUESTS");
     let cfg = super::Configuration::new();
     assert_eq!(cfg.max_concurrent_requests, 256);
