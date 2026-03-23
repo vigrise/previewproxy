@@ -42,6 +42,8 @@ pub struct Configuration {
   // CORS
   pub cors_allow_origin: Vec<String>,
   pub cors_max_age_secs: u64,
+  // Concurrency
+  pub max_concurrent_requests: usize,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -99,6 +101,11 @@ impl Configuration {
       .filter(|s| !s.is_empty())
       .collect();
 
+    let max_concurrent_requests = env_var_u64("MAX_CONCURRENT_REQUESTS", 256) as usize;
+    if max_concurrent_requests == 0 {
+      panic!("MAX_CONCURRENT_REQUESTS must be > 0");
+    }
+
     let cfg = Arc::new(Configuration {
       env,
       listen_address,
@@ -129,6 +136,7 @@ impl Configuration {
         .filter(|s| !s.is_empty())
         .collect(),
       cors_max_age_secs: env_var_u64("CORS_MAX_AGE_SECS", 600),
+      max_concurrent_requests,
     });
     if cfg.hmac_key.is_none() {
       tracing::warn!("HMAC_KEY is not set - all requests are unauthenticated");
@@ -199,6 +207,7 @@ impl std::fmt::Debug for Configuration {
       .field("ffmpeg_path", &self.ffmpeg_path)
       .field("cors_allow_origin", &self.cors_allow_origin)
       .field("cors_max_age_secs", &self.cors_max_age_secs)
+      .field("max_concurrent_requests", &self.max_concurrent_requests)
       .finish()
   }
 }
@@ -209,6 +218,7 @@ mod tests {
   fn test_config_new() {
     std::env::set_var("PORT", "8080");
     std::env::set_var("APP_ENV", "development");
+    std::env::remove_var("MAX_CONCURRENT_REQUESTS");
     let cfg = super::Configuration::new();
     assert_eq!(cfg.app_port, 8080);
     assert_eq!(cfg.fetch_timeout_secs, 10);
@@ -223,5 +233,36 @@ mod tests {
     assert!(cfg.s3_endpoint.is_none());
     assert!(!cfg.local_enabled);
     assert!(cfg.local_base_dir.is_none());
+    assert_eq!(cfg.max_concurrent_requests, 256);
+  }
+
+  #[test]
+  fn test_max_concurrent_requests_default() {
+    std::env::set_var("PORT", "8080");
+    std::env::set_var("APP_ENV", "development");
+    std::env::set_var("MAX_CONCURRENT_REQUESTS", "");
+    std::env::remove_var("MAX_CONCURRENT_REQUESTS");
+    let cfg = super::Configuration::new();
+    assert_eq!(cfg.max_concurrent_requests, 256);
+  }
+
+  #[test]
+  fn test_max_concurrent_requests_from_env() {
+    std::env::set_var("PORT", "8080");
+    std::env::set_var("APP_ENV", "development");
+    std::env::set_var("MAX_CONCURRENT_REQUESTS", "64");
+    let cfg = super::Configuration::new();
+    assert_eq!(cfg.max_concurrent_requests, 64);
+  }
+
+  #[test]
+  fn test_max_concurrent_requests_zero_panics() {
+    std::env::set_var("PORT", "8080");
+    std::env::set_var("APP_ENV", "development");
+    std::env::set_var("MAX_CONCURRENT_REQUESTS", "0");
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+      super::Configuration::new();
+    }));
+    assert!(result.is_err(), "Expected Configuration::new() to panic");
   }
 }

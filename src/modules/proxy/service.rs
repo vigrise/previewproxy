@@ -202,6 +202,7 @@ mod tests {
       ffmpeg_path: "ffmpeg".to_string(),
       cors_allow_origin: vec!["*".to_string()],
       cors_max_age_secs: 600,
+      max_concurrent_requests: 256,
     })
   }
 
