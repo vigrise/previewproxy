@@ -4,12 +4,15 @@ use sha2::Sha256;
 
 type HmacSha256 = Hmac<Sha256>;
 
+/// Signs `message` with HMAC-SHA256 and returns a URL-safe base64 (no-pad) digest.
+/// The canonical message format is `"<params>:<image_url>"`.
 pub fn sign(key: &str, message: &str) -> String {
   let mut mac = HmacSha256::new_from_slice(key.as_bytes()).expect("HMAC can take key of any size");
   mac.update(message.as_bytes());
   URL_SAFE_NO_PAD.encode(mac.finalize().into_bytes())
 }
 
+/// Verifies `sig` against the expected HMAC of `message` using constant-time comparison.
 pub fn verify(key: &str, message: &str, sig: &str) -> bool {
   let expected = sign(key, message);
   // Constant-time comparison to prevent timing attacks

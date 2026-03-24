@@ -5,6 +5,11 @@ use futures::StreamExt;
 use reqwest::Client;
 use std::{sync::Arc, time::Duration};
 
+/// HTTP/HTTPS source fetcher with SSRF protection, allowlist enforcement,
+/// redirect validation, and body size limiting.
+///
+/// Private IP checks run both at DNS resolution time and on each redirect hop.
+/// `check_private_ips` is disabled in development to allow loopback test servers.
 pub struct HttpFetcher {
   client: Client,
   max_bytes: u64,

@@ -16,11 +16,24 @@ struct Meta {
   created_at: u64,
 }
 
+/// Persistent on-disk cache stored as sharded flat files.
+///
+/// Each entry is two files under `<dir>/<key[..2]>/`:
+/// - `<key>.bin` - raw image bytes
+/// - `<key>.meta` - JSON with `content_type` and `created_at` (unix seconds)
+///
+/// Sharding by the first two hex characters of the SHA-256 key limits the
+/// number of files per directory. `ttl_secs = 0` means every entry is
+/// treated as immediately expired (effectively disabling disk caching).
+/// When `max_bytes` is set, `cleanup` evicts the oldest entries first until
+/// the total size falls below the limit.
 pub struct DiskCache {
   dir: String,
   ttl_secs: u64,
   max_bytes: Option<u64>,
+  /// Running total of live cache bytes, updated after each `cleanup` run.
   pub total_bytes: Arc<AtomicU64>,
+  /// Unix timestamp of the `cleanup` scan that produced `total_bytes`.
   pub total_bytes_as_of: Arc<AtomicU64>,
 }
 

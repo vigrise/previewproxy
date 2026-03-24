@@ -41,6 +41,15 @@ fn load_image(bytes: &[u8]) -> Result<DynamicImage, ProxyError> {
     .map_err(|e| ProxyError::InternalError(e.to_string()))
 }
 
+/// Applies the full image transform pipeline to `src_bytes`.
+///
+/// Steps (in order): content-type resolution, disallow checks, PDF/HEIC/PSD
+/// decode, watermark fetch, image decode into `DynamicImage`, then sequentially:
+/// resize, rotate, flip, grayscale, brightness, contrast, blur, watermark
+/// composite, and finally encode to the requested output format.
+///
+/// CPU-bound ops (decode, transform, encode) are run on a blocking thread via
+/// `spawn_blocking` to avoid stalling the async runtime.
 pub async fn run_pipeline(
   params: TransformParams,
   src_bytes: Vec<u8>,

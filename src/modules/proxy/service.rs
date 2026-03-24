@@ -13,6 +13,8 @@ use std::sync::Arc;
 use tokio::sync::{mpsc, OwnedSemaphorePermit};
 use url::Url;
 
+/// Per-request service that orchestrates allowlist checks, HMAC verification,
+/// cache lookup/storage, in-flight coalescing, fetching, and image transforms.
 pub struct ProxyService {
   fetcher: Arc<dyn Fetchable>,
   http_fetcher: Arc<crate::modules::proxy::sources::http::HttpFetcher>,
@@ -45,6 +47,20 @@ impl ProxyService {
     }
   }
 
+  /// Full request pipeline:
+  ///
+  /// 1. Allowlist check on image URL and watermark URL hosts
+  /// 2. HMAC signature verification (skipped when no key is configured)
+  /// 3. Cache lookup (L1 then L2); returns immediately on hit
+  /// 4. In-flight deduplication: wait on existing request for the same key
+  /// 5. **Streaming path** (HTTP source + no transforms): tee the upstream
+  ///    response body directly to the client while writing to cache in the
+  ///    background; the concurrency permit is held inside the stream
+  /// 6. **Buffered path**: fetch full source bytes, run the transform
+  ///    pipeline, store the result in cache, return `ProcessResult::Cached`
+  ///
+  /// Video and PDF sources always take the buffered path regardless of whether
+  /// transforms are requested.
   pub async fn process(
     &self,
     params: TransformParams,

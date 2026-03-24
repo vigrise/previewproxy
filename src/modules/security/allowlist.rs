@@ -1,8 +1,14 @@
 use ipnet::IpNet;
 use std::net::IpAddr;
 
+/// Host-based allowlist for outbound fetch requests.
+///
+/// When constructed with an empty list (`open = true`), all hosts are allowed.
+/// Entries support exact matches (`example.com`) and single-label wildcards
+/// (`*.example.com` matches `www.example.com` but not `a.b.example.com`).
 pub struct Allowlist {
   entries: Vec<String>,
+  /// When true, all hosts are allowed (no list configured).
   open: bool,
 }
 
@@ -47,6 +53,8 @@ static PRIVATE_RANGES: &[&str] = &[
   "fc00::/7",
 ];
 
+/// Returns true if `ip` falls within any RFC-1918, loopback, link-local, or
+/// other non-routable range. Used to block SSRF attempts.
 pub fn is_private_ip(ip: IpAddr) -> bool {
   PRIVATE_RANGES.iter().any(|range| {
     range

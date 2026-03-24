@@ -12,10 +12,14 @@ struct InflightEntry {
 }
 
 #[derive(Clone)]
+/// Tracks in-progress fetches so concurrent requests for the same key wait for
+/// the first caller to complete instead of issuing duplicate upstream requests.
 pub struct InflightMap {
   map: Arc<DashMap<String, Arc<InflightEntry>>>,
 }
 
+/// RAII guard held by the first caller for a key. Must call `complete()` on
+/// success or error; `Drop` handles the panic/cancellation path automatically.
 pub struct InflightGuard {
   key: String,
   map: Arc<DashMap<String, Arc<InflightEntry>>>,

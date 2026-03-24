@@ -3,6 +3,10 @@ use crate::modules::proxy::fetchable::Fetchable;
 use crate::modules::proxy::sources::{HttpFetcher, LocalSource, S3Source};
 use std::sync::Arc;
 
+/// Routes fetch requests to the correct source based on URL scheme:
+/// - `http://` / `https://` -> `HttpFetcher`
+/// - `s3:/` -> `S3Source` (must be enabled in config)
+/// - `local:/` -> `LocalSource` (must be enabled in config)
 pub struct SourceRouter {
   http: Arc<HttpFetcher>,
   s3: Option<Arc<S3Source>>,

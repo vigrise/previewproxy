@@ -9,6 +9,11 @@ use axum::Router;
 use std::sync::Arc;
 use tokio::sync::Semaphore;
 
+/// Builds the application router with all middleware layers applied.
+///
+/// Middleware is applied bottom-to-top (request_id wraps everything,
+/// normalize_path is innermost). Sources are selected via [`SourceRouter`]:
+/// S3 and local filesystem are only initialized when enabled in config.
 pub async fn router(cfg: Config, cache: Arc<CacheManager>) -> Router {
   let allowlist = Arc::new(Allowlist::new(cfg.allowed_hosts.clone()));
   let check_private = cfg.env == Environment::Production;

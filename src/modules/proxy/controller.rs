@@ -21,12 +21,19 @@ use futures::StreamExt;
 use std::collections::HashMap;
 use tokio::sync::OwnedSemaphorePermit;
 
+/// Registers the two proxy entry points:
+/// - `GET /proxy?url=<image_url>&<params>` - query-string style
+/// - `GET /<params>/<image_url>` - path style (params encoded in path prefix)
 pub fn router() -> Router<AppState> {
   Router::new()
     .route("/proxy", get(handle_query))
     .route("/{*path}", get(handle_path))
 }
 
+/// Handles `GET /proxy?url=...` requests.
+///
+/// Acquires a concurrency permit before processing; returns 503 with
+/// `Retry-After: 1` immediately if all permits are exhausted.
 async fn handle_query(
   State(state): State<AppState>,
   Query(query): Query<HashMap<String, String>>,
@@ -50,6 +57,11 @@ async fn handle_query(
     .unwrap_or_else(|e| e.into_response())
 }
 
+/// Handles `GET /<params>/<image_url>` requests.
+///
+/// Path params are parsed from the URL prefix; any additional query-string
+/// params are merged in (query-string wins on conflicts). Acquires a
+/// concurrency permit with the same 503 behaviour as `handle_query`.
 async fn handle_path(
   State(state): State<AppState>,
   Path(path): Path<String>,
@@ -105,6 +117,9 @@ async fn handle_path_inner(
   Ok(build_response(result, &state.cfg))
 }
 
+/// Converts a `ProcessResult` into an HTTP response.
+/// Cached results get `Cache-Control` and `X-Cache: HIT-L1/HIT-L2` headers.
+/// Streamed results get `X-Cache: MISS` and body is forwarded as a chunked stream.
 fn build_response(result: ProcessResult, cfg: &Config) -> Response {
   match result {
     ProcessResult::Cached(entry, hit) => build_cached_response(entry, hit, cfg),

@@ -7,12 +7,21 @@ use crate::modules::cache::{
 use sha2::{Digest, Sha256};
 use std::{sync::Arc, time::Duration};
 
+/// Indicates which cache tier served the response.
 pub enum CacheHit {
+  /// Served from in-process memory cache (fastest).
   L1,
+  /// Served from on-disk cache; entry was promoted to L1.
   L2,
   Miss,
 }
 
+/// Two-tier cache (memory L1 + disk L2) with in-flight request coalescing.
+///
+/// Keys are SHA-256 hex digests of the canonical request string. A "preliminary
+/// key" (from params + URL before fetching) is used for cache lookup and
+/// in-flight deduplication; the same key is used as the final storage key after
+/// the result is computed.
 pub struct CacheManager {
   l1: MemoryCache,
   pub l2: Arc<DiskCache>,
@@ -72,6 +81,7 @@ impl CacheManager {
       .load(std::sync::atomic::Ordering::Relaxed)
   }
 
+  /// Unix timestamp (seconds) of the last disk-usage scan used for `disk_total_bytes`.
   pub fn disk_total_bytes_as_of(&self) -> u64 {
     self
       .l2
