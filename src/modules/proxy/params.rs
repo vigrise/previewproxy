@@ -239,6 +239,7 @@ fn parse_gif_anim_value(s: &str) -> Result<GifAnimRange, ProxyError> {
       .map_err(|_| ProxyError::InvalidParams("invalid gif_anim".to_string()))?;
     return Ok(GifAnimRange::Last(n));
   }
+  // split_once takes only the first '-'; "1-2-3" correctly fails at y_str.parse
   if let Some((x_str, y_str)) = s.split_once('-') {
     let x = x_str
       .parse::<usize>()
