@@ -51,24 +51,24 @@ Query params take precedence when both styles are combined.
 
 ## Transform Parameters
 
-| Param       | Values                       | Description                          |
-| ----------- | ---------------------------- | ------------------------------------ |
-| `w`         | integer                      | Output width in pixels               |
-| `h`         | integer                      | Output height in pixels              |
-| `fit`       | `contain` (default), `cover` | Resize mode                          |
-| `format`    | `jpeg`, `png`, `webp`        | Output format                        |
-| `q`         | 1-100 (default: 85)          | Compression quality                  |
-| `rotate`    | `90`, `180`, `270`           | Rotation degrees                     |
-| `flip`      | `h`, `v`                     | Flip horizontal or vertical          |
-| `grayscale` | `true`                       | Convert to grayscale                 |
-| `bright`    | -100 to 100                  | Brightness adjustment                |
-| `contrast`  | -100 to 100                  | Contrast adjustment                  |
-| `blur`      | float (sigma)                        | Gaussian blur                                    |
-| `wm`        | URL                                  | Watermark image URL                              |
-| `seek`      | `5.0`, `0.5r`, `auto` (default: `0`) | Video seek: absolute seconds, relative ratio, or auto (middle frame) |
-| `gif_anim`  | `all`, `N`, `N-M`, `-N`              | Animated GIF: output all frames, apply transforms starting at frame N, to frame range N-M, or to last N frames |
-| `gif_af`    | `true`, `1`                          | GIF all-frames: apply style transforms (color, blur, etc.) to every frame, not just the `gif_anim` range |
-| `sig`       | string                               | HMAC-SHA256 signature (if required)              |
+| Param       | Values                               | Description                                                                                                                                                                       |
+| ----------- | ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `w`         | integer                              | Output width in pixels                                                                                                                                                            |
+| `h`         | integer                              | Output height in pixels                                                                                                                                                           |
+| `fit`       | `contain` (default), `cover`         | Resize mode                                                                                                                                                                       |
+| `format`    | `jpeg`, `png`, `webp`                | Output format                                                                                                                                                                     |
+| `q`         | 1-100 (default: 85)                  | Compression quality                                                                                                                                                               |
+| `rotate`    | `90`, `180`, `270`                   | Rotation degrees                                                                                                                                                                  |
+| `flip`      | `h`, `v`                             | Flip horizontal or vertical                                                                                                                                                       |
+| `grayscale` | `true`                               | Convert to grayscale                                                                                                                                                              |
+| `bright`    | -100 to 100                          | Brightness adjustment                                                                                                                                                             |
+| `contrast`  | -100 to 100                          | Contrast adjustment                                                                                                                                                               |
+| `blur`      | float (sigma)                        | Gaussian blur                                                                                                                                                                     |
+| `wm`        | URL                                  | Watermark image URL                                                                                                                                                               |
+| `seek`      | `5.0`, `0.5r`, `auto` (default: `0`) | Video seek: absolute seconds, relative ratio, or auto (middle frame)                                                                                                              |
+| `gif_anim`  | `all`, `N`, `N-M`, `-N`              | Animated GIF: output all frames, apply transforms starting at frame N, to frame range N-M, or to last N frames                                                                    |
+| `gif_af`    | `true`, `1`                          | GIF all-frames: output all frames, not just the `gif_anim` range; style transforms apply only to frames in range, geometric transforms (resize, rotate, flip) apply to all frames |
+| `sig`       | string                               | HMAC-SHA256 signature (if required)                                                                                                                                               |
 
 ## API Endpoints
 
@@ -83,8 +83,10 @@ Query params take precedence when both styles are combined.
 ### Linux / macOS
 
 ```shell
-curl -o- https://raw.githubusercontent.com/ViGrise/previewproxy/main/install.sh | sudo bash
-# or
+curl -s -o- https://raw.githubusercontent.com/ViGrise/previewproxy/main/install.sh | sudo bash
+```
+
+```shell
 wget -qO- https://raw.githubusercontent.com/ViGrise/previewproxy/main/install.sh | sudo bash
 ```
 
@@ -127,38 +129,46 @@ cp .env.sample .env
 docker-compose up -d
 ```
 
+### Upgrade
+
+To be upgrade to latest version, you can rerun the installation script or use the following command:
+
+```shell
+previewproxy upgrade
+```
+
 ### CLI Reference
 
 Configuration is read from environment variables (`.env` file) or CLI flags - CLI flags take precedence.
 
-| Flag                            | Env var                       | Default             | Description                                                                                                       |
-| ------------------------------- | ----------------------------- | ------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `--port`, `-p`                  | `PORT`                        | `8080`              | Server port                                                                                                       |
-| `--env`, `-E`                   | `APP_ENV`                     | `development`       | `development` or `production`                                                                                     |
-| `--hmac-key`, `-k`              | `HMAC_KEY`                    | -                   | HMAC signing key; omit to disable                                                                                 |
-| `--allowed-hosts`, `-a`         | `ALLOWED_HOSTS`               | -                   | Comma-separated allowed domains; empty = allow all                                                                |
-| `--fetch-timeout-secs`, `-t`    | `FETCH_TIMEOUT_SECS`          | `10`                | Upstream fetch timeout (seconds)                                                                                  |
-| `--max-source-bytes`, `-s`      | `MAX_SOURCE_BYTES`            | `20971520`          | Max source image size (bytes)                                                                                     |
-| `--cache-memory-max-mb`         | `CACHE_MEMORY_MAX_MB`         | `256`               | L1 in-memory cache size (MB)                                                                                      |
-| `--cache-memory-ttl-secs`       | `CACHE_MEMORY_TTL_SECS`       | `3600`              | L1 cache TTL (seconds)                                                                                            |
-| `--cache-dir`, `-D`             | `CACHE_DIR`                   | `/tmp/previewproxy` | L2 disk cache directory                                                                                           |
-| `--cache-disk-ttl-secs`         | `CACHE_DISK_TTL_SECS`         | `86400`             | L2 cache TTL (seconds)                                                                                            |
-| `--cache-disk-max-mb`           | `CACHE_DISK_MAX_MB`           | -                   | L2 disk cache size limit (MB); empty = unlimited                                                                  |
-| `--cache-cleanup-interval-secs` | `CACHE_CLEANUP_INTERVAL_SECS` | `600`               | Background cleanup interval (seconds)                                                                             |
-| `--ffmpeg-path`                 | `FFMPEG_PATH`                 | `ffmpeg`            | Path to the ffmpeg binary                                                                                         |
-| `--ffprobe-path`                | `FFPROBE_PATH`                | (same dir as ffmpeg) | Path to the ffprobe binary; defaults to `ffprobe` in the same directory as ffmpeg                                |
-| `--cors-allow-origin`           | `CORS_ALLOW_ORIGIN`           | `*`                 | Comma-separated allowed CORS origins; `*` = allow all; wildcards (`*.example.com`) match a single subdomain label |
-| `--cors-max-age-secs`           | `CORS_MAX_AGE_SECS`           | `600`               | CORS preflight cache duration (seconds)                                                                           |
-| `--input-disallow-list`         | `INPUT_DISALLOW_LIST`         | -                   | Comma-separated input formats to block: `jpeg`, `png`, `gif`, `webp`, `avif`, `jxl`, `bmp`, `tiff`, `pdf`, `psd`, `video` |
-| `--output-disallow-list`        | `OUTPUT_DISALLOW_LIST`        | -                   | Comma-separated output formats to block: `jpeg`, `png`, `gif`, `webp`, `avif`, `jxl`, `bmp`, `tiff`, `ico`      |
-| `--transform-disallow-list`     | `TRANSFORM_DISALLOW_LIST`     | -                   | Comma-separated transforms to block: `resize`, `rotate`, `flip`, `grayscale`, `brightness`, `contrast`, `blur`, `watermark`, `gif_anim` |
-| -                               | `RUST_LOG`                    | `server=info,...`   | Log level filter                                                                                                  |
+| Flag                            | Env var                       | Default                        | Description                                                                                                                             |
+| ------------------------------- | ----------------------------- | ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `--port`, `-p`                  | `PORT`                        | `8080`                         | Server port                                                                                                                             |
+| `--env`, `-E`                   | `APP_ENV`                     | `development`                  | `development` or `production`                                                                                                           |
+| `--hmac-key`, `-k`              | `HMAC_KEY`                    | -                              | HMAC signing key; omit to disable                                                                                                       |
+| `--allowed-hosts`, `-a`         | `ALLOWED_HOSTS`               | -                              | Comma-separated allowed domains; empty = allow all                                                                                      |
+| `--fetch-timeout-secs`, `-t`    | `FETCH_TIMEOUT_SECS`          | `10`                           | Upstream fetch timeout (seconds)                                                                                                        |
+| `--max-source-bytes`, `-s`      | `MAX_SOURCE_BYTES`            | `20971520`                     | Max source image size (bytes)                                                                                                           |
+| `--cache-memory-max-mb`         | `CACHE_MEMORY_MAX_MB`         | `256`                          | L1 in-memory cache size (MB)                                                                                                            |
+| `--cache-memory-ttl-secs`       | `CACHE_MEMORY_TTL_SECS`       | `3600`                         | L1 cache TTL (seconds)                                                                                                                  |
+| `--cache-dir`, `-D`             | `CACHE_DIR`                   | `/tmp/previewproxy`            | L2 disk cache directory                                                                                                                 |
+| `--cache-disk-ttl-secs`         | `CACHE_DISK_TTL_SECS`         | `86400`                        | L2 cache TTL (seconds)                                                                                                                  |
+| `--cache-disk-max-mb`           | `CACHE_DISK_MAX_MB`           | -                              | L2 disk cache size limit (MB); empty = unlimited                                                                                        |
+| `--cache-cleanup-interval-secs` | `CACHE_CLEANUP_INTERVAL_SECS` | `600`                          | Background cleanup interval (seconds)                                                                                                   |
+| `--ffmpeg-path`                 | `FFMPEG_PATH`                 | `ffmpeg`                       | Path to the ffmpeg binary                                                                                                               |
+| `--ffprobe-path`                | `FFPROBE_PATH`                | `ffprobe` (same dir as ffmpeg) | Path to the ffprobe binary; defaults to `ffprobe` in the same directory as ffmpeg                                                       |
+| `--cors-allow-origin`           | `CORS_ALLOW_ORIGIN`           | `*`                            | Comma-separated allowed CORS origins; `*` = allow all; wildcards (`*.example.com`) match a single subdomain label                       |
+| `--cors-max-age-secs`           | `CORS_MAX_AGE_SECS`           | `600`                          | CORS preflight cache duration (seconds)                                                                                                 |
+| `--input-disallow-list`         | `INPUT_DISALLOW_LIST`         | -                              | Comma-separated input formats to block: `jpeg`, `png`, `gif`, `webp`, `avif`, `jxl`, `bmp`, `tiff`, `pdf`, `psd`, `video`               |
+| `--output-disallow-list`        | `OUTPUT_DISALLOW_LIST`        | -                              | Comma-separated output formats to block: `jpeg`, `png`, `gif`, `webp`, `avif`, `jxl`, `bmp`, `tiff`, `ico`                              |
+| `--transform-disallow-list`     | `TRANSFORM_DISALLOW_LIST`     | -                              | Comma-separated transforms to block: `resize`, `rotate`, `flip`, `grayscale`, `brightness`, `contrast`, `blur`, `watermark`, `gif_anim` |
+| -                               | `RUST_LOG`                    | `server=info,...`              | Log level filter                                                                                                                        |
 
 ---
 
 ## Security
 
-### Allowlist
+### Upstream Allowlist
 
 Set `ALLOWED_HOSTS` to a comma-separated list of trusted upstream domains. Wildcards match a single label:
 
@@ -188,7 +198,7 @@ CORS_ALLOW_ORIGIN=https://app.example.com,*.cdn.example.com
 
 Leave as `*` (default) to allow any origin.
 
-### Disallow Lists
+### Formats & Transforms Disallow Lists
 
 Block specific input formats, output formats, or transforms via env vars. Each accepts a comma-separated list of tokens; unknown tokens are ignored with a warning.
 

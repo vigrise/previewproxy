@@ -3145,6 +3145,7 @@ dependencies = [
  "ravif",
  "reqwest",
  "resvg",
+ "semver",
  "serde",
  "serde_json",
  "sha2",

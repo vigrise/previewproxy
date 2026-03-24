@@ -31,9 +31,9 @@ DEST="${INSTALL_DIR}/${BIN_NAME}"
 
 echo "Downloading ${ARTIFACT}..."
 if command -v curl &>/dev/null; then
-  curl -fsSL "$URL" -o "$DEST"
+  curl -fL --progress-bar "$URL" -o "$DEST"
 elif command -v wget &>/dev/null; then
-  wget -qO "$DEST" "$URL"
+  wget -qO "$DEST" --show-progress "$URL"
 else
   echo "curl or wget is required" >&2
   exit 1

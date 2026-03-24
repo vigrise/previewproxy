@@ -72,6 +72,7 @@ aws-sdk-s3 = "1"
 aws-config = "1"
 urlencoding = "2"
 url = "2"
+semver = "1"
 
 [target.'cfg(not(target_os = "windows"))'.dependencies]
 jpegxl-rs = { version = "0.14", features = ["vendored"] }
