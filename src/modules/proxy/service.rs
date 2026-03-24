@@ -308,7 +308,7 @@ impl ProxyService {
 
     // 10. If has_transforms or is_pdf: run_pipeline(); else resolve_content_type()
     let pipeline_result = if params.has_transforms() || is_pdf {
-      pipeline::run_pipeline(params, src_bytes, src_ct, self.fetcher.clone())
+      pipeline::run_pipeline(params, src_bytes, src_ct, self.fetcher.clone(), &self.output_disallow, &self.transform_disallow)
         .await
         .map(|(bytes, ct)| CacheEntry {
           bytes,

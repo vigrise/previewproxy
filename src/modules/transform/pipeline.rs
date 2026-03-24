@@ -46,10 +46,67 @@ pub async fn run_pipeline(
   src_bytes: Vec<u8>,
   src_content_type: Option<String>,
   fetcher: Arc<dyn Fetchable>,
+  output_disallow: &std::collections::HashSet<crate::common::config::DisallowedOutput>,
+  transform_disallow: &std::collections::HashSet<crate::common::config::DisallowedTransform>,
 ) -> Result<(Vec<u8>, String), ProxyError> {
   // 1. Validate content-type
   let resolved_ct = resolve_content_type(src_content_type.as_deref(), &src_bytes)?;
   let is_document = resolved_ct == "application/pdf";
+
+  // Output disallow check
+  {
+    use crate::common::config::DisallowedOutput;
+    let fmt = params.format.as_deref().unwrap_or("jpeg");
+    let token: Option<DisallowedOutput> = match fmt {
+      "jpeg" => Some(DisallowedOutput::Jpeg),
+      "png"  => Some(DisallowedOutput::Png),
+      "gif"  => Some(DisallowedOutput::Gif),
+      "webp" => Some(DisallowedOutput::Webp),
+      "avif" => Some(DisallowedOutput::Avif),
+      "jxl"  => Some(DisallowedOutput::Jxl),
+      "bmp"  => Some(DisallowedOutput::Bmp),
+      "tiff" => Some(DisallowedOutput::Tiff),
+      "ico"  => Some(DisallowedOutput::Ico),
+      _ => None,
+    };
+    if let Some(t) = token {
+      if output_disallow.contains(&t) {
+        return Err(ProxyError::TransformDisabled(fmt.to_string()));
+      }
+    }
+  }
+
+  // Transform disallow check
+  {
+    use crate::common::config::DisallowedTransform;
+    if (params.gif_anim.is_some() || params.gif_af.is_some()) && transform_disallow.contains(&DisallowedTransform::GifAnim) {
+      return Err(ProxyError::TransformDisabled("gif_anim".to_string()));
+    }
+    if (params.w.is_some() || params.h.is_some()) && transform_disallow.contains(&DisallowedTransform::Resize) {
+      return Err(ProxyError::TransformDisabled("resize".to_string()));
+    }
+    if params.rotate.is_some() && transform_disallow.contains(&DisallowedTransform::Rotate) {
+      return Err(ProxyError::TransformDisabled("rotate".to_string()));
+    }
+    if params.flip.is_some() && transform_disallow.contains(&DisallowedTransform::Flip) {
+      return Err(ProxyError::TransformDisabled("flip".to_string()));
+    }
+    if params.bright.is_some() && transform_disallow.contains(&DisallowedTransform::Brightness) {
+      return Err(ProxyError::TransformDisabled("brightness".to_string()));
+    }
+    if params.contrast.is_some() && transform_disallow.contains(&DisallowedTransform::Contrast) {
+      return Err(ProxyError::TransformDisabled("contrast".to_string()));
+    }
+    if params.grayscale == Some(true) && transform_disallow.contains(&DisallowedTransform::Grayscale) {
+      return Err(ProxyError::TransformDisabled("grayscale".to_string()));
+    }
+    if params.blur.is_some() && transform_disallow.contains(&DisallowedTransform::Blur) {
+      return Err(ProxyError::TransformDisabled("blur".to_string()));
+    }
+    if params.wm.is_some() && transform_disallow.contains(&DisallowedTransform::Watermark) {
+      return Err(ProxyError::TransformDisabled("watermark".to_string()));
+    }
+  }
 
   // 2. Passthrough: no transforms → return as-is with resolved content-type
   if !params.has_transforms() && !is_document {
@@ -167,7 +224,7 @@ mod tests {
   async fn test_passthrough_no_transforms() {
     let params = TransformParams::default();
     let bytes = tiny_png_bytes();
-    let (out, ct) = run_pipeline(params, bytes, Some("image/png".to_string()), test_fetcher())
+    let (out, ct) = run_pipeline(params, bytes, Some("image/png".to_string()), test_fetcher(), &std::collections::HashSet::new(), &std::collections::HashSet::new())
       .await
       .unwrap();
     assert_eq!(ct, "image/png");
@@ -183,7 +240,7 @@ mod tests {
       ..Default::default()
     };
     let bytes = tiny_png_bytes();
-    let (out, ct) = run_pipeline(params, bytes, Some("image/png".to_string()), test_fetcher())
+    let (out, ct) = run_pipeline(params, bytes, Some("image/png".to_string()), test_fetcher(), &std::collections::HashSet::new(), &std::collections::HashSet::new())
       .await
       .unwrap();
     assert_eq!(ct, "image/webp");
@@ -198,6 +255,8 @@ mod tests {
       b"not an image".to_vec(),
       Some("text/html".to_string()),
       test_fetcher(),
+      &std::collections::HashSet::new(),
+      &std::collections::HashSet::new(),
     )
     .await;
     assert!(matches!(
@@ -210,7 +269,7 @@ mod tests {
   async fn test_absent_content_type_inferred() {
     let bytes = tiny_png_bytes();
     let params = TransformParams::default();
-    let (_, ct) = run_pipeline(params, bytes, None, test_fetcher())
+    let (_, ct) = run_pipeline(params, bytes, None, test_fetcher(), &std::collections::HashSet::new(), &std::collections::HashSet::new())
       .await
       .unwrap();
     assert!(ct.starts_with("image/"));
@@ -244,7 +303,7 @@ mod tests {
       ..Default::default()
     };
     let bytes = tiny_gif_anim_bytes();
-    let (out, ct) = run_pipeline(params, bytes, Some("image/gif".to_string()), test_fetcher())
+    let (out, ct) = run_pipeline(params, bytes, Some("image/gif".to_string()), test_fetcher(), &std::collections::HashSet::new(), &std::collections::HashSet::new())
       .await
       .unwrap();
     assert_eq!(ct, "image/gif");
@@ -267,7 +326,7 @@ mod tests {
       ..Default::default()
     };
     let bytes = tiny_gif_anim_bytes();
-    let (out, ct) = run_pipeline(params, bytes, Some("image/gif".to_string()), test_fetcher())
+    let (out, ct) = run_pipeline(params, bytes, Some("image/gif".to_string()), test_fetcher(), &std::collections::HashSet::new(), &std::collections::HashSet::new())
       .await
       .unwrap();
     assert_eq!(ct, "image/gif");
@@ -286,7 +345,7 @@ mod tests {
       ..Default::default()
     };
     let bytes = tiny_png_bytes();
-    let (out, ct) = run_pipeline(params, bytes, Some("image/png".to_string()), test_fetcher())
+    let (out, ct) = run_pipeline(params, bytes, Some("image/png".to_string()), test_fetcher(), &std::collections::HashSet::new(), &std::collections::HashSet::new())
       .await
       .unwrap();
     // Static path default format is jpeg
@@ -304,10 +363,84 @@ mod tests {
       ..Default::default()
     };
     let bytes = tiny_png_bytes();
-    let (out, ct) = run_pipeline(params, bytes, Some("image/png".to_string()), test_fetcher())
+    let (out, ct) = run_pipeline(params, bytes, Some("image/png".to_string()), test_fetcher(), &std::collections::HashSet::new(), &std::collections::HashSet::new())
       .await
       .unwrap();
     assert_eq!(ct, "image/png");
     assert_eq!(&out[1..4], b"PNG");
+  }
+
+  #[tokio::test]
+  async fn test_output_disallowed_avif_returns_error() {
+    use crate::common::config::DisallowedOutput;
+    let mut output_disallow = std::collections::HashSet::new();
+    output_disallow.insert(DisallowedOutput::Avif);
+    let params = TransformParams {
+      format: Some("avif".to_string()),
+      ..Default::default()
+    };
+    let result = run_pipeline(
+      params, tiny_png_bytes(), Some("image/png".to_string()), test_fetcher(),
+      &output_disallow, &std::collections::HashSet::new(),
+    ).await;
+    assert!(matches!(result, Err(crate::common::errors::ProxyError::TransformDisabled(_))));
+  }
+
+  #[tokio::test]
+  async fn test_transform_disallowed_blur_returns_error() {
+    use crate::common::config::DisallowedTransform;
+    let mut transform_disallow = std::collections::HashSet::new();
+    transform_disallow.insert(DisallowedTransform::Blur);
+    let params = TransformParams { blur: Some(2.0), ..Default::default() };
+    let result = run_pipeline(
+      params, tiny_png_bytes(), Some("image/png".to_string()), test_fetcher(),
+      &std::collections::HashSet::new(), &transform_disallow,
+    ).await;
+    assert!(matches!(result, Err(crate::common::errors::ProxyError::TransformDisabled(_))));
+  }
+
+  #[tokio::test]
+  async fn test_gif_af_alone_disallowed_gif_anim_returns_error() {
+    use crate::common::config::DisallowedTransform;
+    let mut transform_disallow = std::collections::HashSet::new();
+    transform_disallow.insert(DisallowedTransform::GifAnim);
+    let params = TransformParams { gif_af: Some(true), ..Default::default() };
+    let result = run_pipeline(
+      params, tiny_png_bytes(), Some("image/png".to_string()), test_fetcher(),
+      &std::collections::HashSet::new(), &transform_disallow,
+    ).await;
+    assert!(matches!(result, Err(crate::common::errors::ProxyError::TransformDisabled(_))));
+  }
+
+  #[tokio::test]
+  async fn test_allowed_ops_pass_through() {
+    let params = TransformParams { w: Some(4), h: Some(4), ..Default::default() };
+    let result = run_pipeline(
+      params, tiny_png_bytes(), Some("image/png".to_string()), test_fetcher(),
+      &std::collections::HashSet::new(), &std::collections::HashSet::new(),
+    ).await;
+    assert!(result.is_ok());
+  }
+
+  #[tokio::test]
+  async fn test_input_disallow_avif_does_not_block_avif_output() {
+    use crate::common::config::DisallowedOutput;
+    // avif output allowed when output_disallow is empty
+    let params = TransformParams { format: Some("avif".to_string()), ..Default::default() };
+    let result = run_pipeline(
+      params, tiny_png_bytes(), Some("image/png".to_string()), test_fetcher(),
+      &std::collections::HashSet::new(), &std::collections::HashSet::new(),
+    ).await;
+    assert!(result.is_ok(), "avif output must be allowed when output_disallow is empty");
+
+    // avif output blocked when output_disallow contains Avif
+    let params2 = TransformParams { format: Some("avif".to_string()), ..Default::default() };
+    let mut output_disallow = std::collections::HashSet::new();
+    output_disallow.insert(DisallowedOutput::Avif);
+    let result2 = run_pipeline(
+      params2, tiny_png_bytes(), Some("image/png".to_string()), test_fetcher(),
+      &output_disallow, &std::collections::HashSet::new(),
+    ).await;
+    assert!(matches!(result2, Err(crate::common::errors::ProxyError::TransformDisabled(_))));
   }
 }
