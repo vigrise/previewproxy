@@ -644,7 +644,7 @@ mod streaming_tests {
       cache_memory_max_mb: 16,
       cache_memory_ttl_secs: 60,
       cache_dir: "/tmp/previewproxy-svc-stream-test".to_string(),
-      cache_disk_ttl_secs: 60,
+      cache_disk_ttl_secs: 0,
       cache_disk_max_mb: None,
       cache_cleanup_interval_secs: 600,
       s3_enabled: false,
