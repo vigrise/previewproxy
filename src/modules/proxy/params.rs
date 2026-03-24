@@ -10,6 +10,14 @@ pub enum SeekMode {
   Auto,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum GifAnimRange {
+  All,
+  From(usize),
+  Range(usize, usize),
+  Last(usize),
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct TransformParams {
   /// Output width in pixels (max 8192).
@@ -40,6 +48,10 @@ pub struct TransformParams {
   pub wm: Option<String>,
   /// HMAC signature for request validation (excluded from canonical string).
   pub sig: Option<String>,
+  /// Animated GIF frame range selection.
+  pub gif_anim: Option<GifAnimRange>,
+  /// Return all GIF frames but only transform frames in gif_anim range.
+  pub gif_af: Option<bool>,
 }
 
 impl TransformParams {
@@ -129,6 +141,12 @@ impl TransformParams {
     if other.sig.is_some() {
       self.sig = other.sig;
     }
+    if other.gif_anim.is_some() {
+      self.gif_anim = other.gif_anim;
+    }
+    if other.gif_af.is_some() {
+      self.gif_af = other.gif_af;
+    }
   }
 
   /// Canonical string for HMAC and cache key (excludes sig).
@@ -152,6 +170,18 @@ impl TransformParams {
     }
     if let Some(v) = &self.format {
       parts.push(format!("format={v}"));
+    }
+    if self.gif_af == Some(true) {
+      parts.push("gif_af=1".to_string());
+    }
+    if let Some(r) = &self.gif_anim {
+      let s = match r {
+        GifAnimRange::All => "gif_anim=all".to_string(),
+        GifAnimRange::From(x) => format!("gif_anim={x}"),
+        GifAnimRange::Range(x, y) => format!("gif_anim={x}-{y}"),
+        GifAnimRange::Last(n) => format!("gif_anim=-{n}"),
+      };
+      parts.push(s);
     }
     if let Some(v) = &self.grayscale {
       parts.push(format!("grayscale={}", if *v { 1 } else { 0 }));
@@ -195,6 +225,7 @@ impl TransformParams {
       || self.bright.is_some()
       || self.contrast.is_some()
       || self.wm.is_some()
+      || self.gif_anim.is_some()
   }
 }
 
@@ -713,5 +744,109 @@ mod tests {
       ..Default::default()
     };
     assert!(p.has_transforms());
+  }
+
+  #[test]
+  fn test_gif_anim_has_transforms() {
+    use super::GifAnimRange;
+    let p = TransformParams {
+      gif_anim: Some(GifAnimRange::All),
+      ..Default::default()
+    };
+    assert!(p.has_transforms());
+  }
+
+  #[test]
+  fn test_gif_anim_has_transforms_from_variant() {
+    use super::GifAnimRange;
+    let p = TransformParams {
+      gif_anim: Some(GifAnimRange::From(1)),
+      ..Default::default()
+    };
+    assert!(p.has_transforms());
+  }
+
+  #[test]
+  fn test_gif_af_alone_does_not_trigger_has_transforms() {
+    let p = TransformParams {
+      gif_af: Some(true),
+      ..Default::default()
+    };
+    assert!(!p.has_transforms());
+  }
+
+  #[test]
+  fn test_gif_anim_canonical_all() {
+    use super::GifAnimRange;
+    let p = TransformParams {
+      gif_anim: Some(GifAnimRange::All),
+      ..Default::default()
+    };
+    assert_eq!(p.canonical_string("u"), "gif_anim=all:u");
+  }
+
+  #[test]
+  fn test_gif_anim_canonical_from() {
+    use super::GifAnimRange;
+    let p = TransformParams {
+      gif_anim: Some(GifAnimRange::From(2)),
+      ..Default::default()
+    };
+    assert_eq!(p.canonical_string("u"), "gif_anim=2:u");
+  }
+
+  #[test]
+  fn test_gif_anim_canonical_range() {
+    use super::GifAnimRange;
+    let p = TransformParams {
+      gif_anim: Some(GifAnimRange::Range(1, 5)),
+      ..Default::default()
+    };
+    assert_eq!(p.canonical_string("u"), "gif_anim=1-5:u");
+  }
+
+  #[test]
+  fn test_gif_anim_canonical_last() {
+    use super::GifAnimRange;
+    let p = TransformParams {
+      gif_anim: Some(GifAnimRange::Last(3)),
+      ..Default::default()
+    };
+    assert_eq!(p.canonical_string("u"), "gif_anim=-3:u");
+  }
+
+  #[test]
+  fn test_gif_af_canonical_true_included() {
+    let p = TransformParams {
+      gif_af: Some(true),
+      ..Default::default()
+    };
+    assert!(p.canonical_string("u").contains("gif_af=1"));
+  }
+
+  #[test]
+  fn test_gif_af_canonical_false_excluded() {
+    let p = TransformParams {
+      gif_af: Some(false),
+      ..Default::default()
+    };
+    assert!(!p.canonical_string("u").contains("gif_af"));
+  }
+
+  #[test]
+  fn test_gif_anim_merge_from() {
+    use super::GifAnimRange;
+    let mut base = TransformParams {
+      gif_anim: Some(GifAnimRange::All),
+      ..Default::default()
+    };
+    let other = TransformParams {
+      gif_anim: Some(GifAnimRange::From(2)),
+      gif_af: Some(true),
+      ..Default::default()
+    };
+    base.merge_from(other);
+    assert!(matches!(base.gif_anim, Some(GifAnimRange::From(2))));
+    assert_eq!(base.gif_af, Some(true));
   }
 }
