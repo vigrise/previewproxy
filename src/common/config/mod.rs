@@ -2,6 +2,7 @@ pub mod shutdown;
 pub mod telemetry;
 
 use std::{
+  collections::HashSet,
   net::{Ipv4Addr, SocketAddr},
   sync::Arc,
 };
@@ -45,6 +46,25 @@ pub struct Configuration {
   pub cors_max_age_secs: u64,
   // Concurrency
   pub max_concurrent_requests: usize,
+  // Disallow lists
+  pub input_disallow: HashSet<DisallowedInput>,
+  pub output_disallow: HashSet<DisallowedOutput>,
+  pub transform_disallow: HashSet<DisallowedTransform>,
+}
+
+#[derive(Debug, Clone, Hash, Eq, PartialEq)]
+pub enum DisallowedInput {
+  Jpeg, Png, Gif, Webp, Avif, Jxl, Bmp, Tiff, Pdf, Psd, Video,
+}
+
+#[derive(Debug, Clone, Hash, Eq, PartialEq)]
+pub enum DisallowedOutput {
+  Jpeg, Png, Gif, Webp, Avif, Jxl, Bmp, Tiff, Ico,
+}
+
+#[derive(Debug, Clone, Hash, Eq, PartialEq)]
+pub enum DisallowedTransform {
+  Resize, Rotate, Flip, Grayscale, Brightness, Contrast, Blur, Watermark, GifAnim,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -83,6 +103,59 @@ fn env_var_bool(name: &str) -> bool {
   std::env::var(name)
     .map(|v| v == "true" || v == "1")
     .unwrap_or(false)
+}
+
+fn parse_input_disallow(s: &str) -> HashSet<DisallowedInput> {
+  s.split(',').map(|t| t.trim()).filter(|t| !t.is_empty()).filter_map(|t| {
+    match t {
+      "jpeg" => Some(DisallowedInput::Jpeg),
+      "png"  => Some(DisallowedInput::Png),
+      "gif"  => Some(DisallowedInput::Gif),
+      "webp" => Some(DisallowedInput::Webp),
+      "avif" => Some(DisallowedInput::Avif),
+      "jxl"  => Some(DisallowedInput::Jxl),
+      "bmp"  => Some(DisallowedInput::Bmp),
+      "tiff" => Some(DisallowedInput::Tiff),
+      "pdf"  => Some(DisallowedInput::Pdf),
+      "psd"  => Some(DisallowedInput::Psd),
+      "video"=> Some(DisallowedInput::Video),
+      other  => { tracing::warn!("unknown INPUT_DISALLOW_LIST token: {:?}, ignoring", other); None }
+    }
+  }).collect()
+}
+
+fn parse_output_disallow(s: &str) -> HashSet<DisallowedOutput> {
+  s.split(',').map(|t| t.trim()).filter(|t| !t.is_empty()).filter_map(|t| {
+    match t {
+      "jpeg" => Some(DisallowedOutput::Jpeg),
+      "png"  => Some(DisallowedOutput::Png),
+      "gif"  => Some(DisallowedOutput::Gif),
+      "webp" => Some(DisallowedOutput::Webp),
+      "avif" => Some(DisallowedOutput::Avif),
+      "jxl"  => Some(DisallowedOutput::Jxl),
+      "bmp"  => Some(DisallowedOutput::Bmp),
+      "tiff" => Some(DisallowedOutput::Tiff),
+      "ico"  => Some(DisallowedOutput::Ico),
+      other  => { tracing::warn!("unknown OUTPUT_DISALLOW_LIST token: {:?}, ignoring", other); None }
+    }
+  }).collect()
+}
+
+fn parse_transform_disallow(s: &str) -> HashSet<DisallowedTransform> {
+  s.split(',').map(|t| t.trim()).filter(|t| !t.is_empty()).filter_map(|t| {
+    match t {
+      "resize"     => Some(DisallowedTransform::Resize),
+      "rotate"     => Some(DisallowedTransform::Rotate),
+      "flip"       => Some(DisallowedTransform::Flip),
+      "grayscale"  => Some(DisallowedTransform::Grayscale),
+      "brightness" => Some(DisallowedTransform::Brightness),
+      "contrast"   => Some(DisallowedTransform::Contrast),
+      "blur"       => Some(DisallowedTransform::Blur),
+      "watermark"  => Some(DisallowedTransform::Watermark),
+      "gif_anim"   => Some(DisallowedTransform::GifAnim),
+      other        => { tracing::warn!("unknown TRANSFORM_DISALLOW_LIST token: {:?}, ignoring", other); None }
+    }
+  }).collect()
 }
 
 impl Configuration {
@@ -153,6 +226,15 @@ impl Configuration {
         .collect(),
       cors_max_age_secs: env_var_u64("CORS_MAX_AGE_SECS", 600),
       max_concurrent_requests,
+      input_disallow: parse_input_disallow(
+        &std::env::var("INPUT_DISALLOW_LIST").unwrap_or_default()
+      ),
+      output_disallow: parse_output_disallow(
+        &std::env::var("OUTPUT_DISALLOW_LIST").unwrap_or_else(|_| "avif,jxl".to_string())
+      ),
+      transform_disallow: parse_transform_disallow(
+        &std::env::var("TRANSFORM_DISALLOW_LIST").unwrap_or_else(|_| "watermark,gif_anim".to_string())
+      ),
     });
     if cfg.hmac_key.is_none() {
       tracing::warn!("HMAC_KEY is not set - all requests are unauthenticated");
@@ -225,6 +307,18 @@ impl std::fmt::Debug for Configuration {
       .field("cors_allow_origin", &self.cors_allow_origin)
       .field("cors_max_age_secs", &self.cors_max_age_secs)
       .field("max_concurrent_requests", &self.max_concurrent_requests)
+      .field("input_disallow", &{
+        let mut v: Vec<_> = self.input_disallow.iter().map(|x| format!("{x:?}")).collect();
+        v.sort(); v
+      })
+      .field("output_disallow", &{
+        let mut v: Vec<_> = self.output_disallow.iter().map(|x| format!("{x:?}")).collect();
+        v.sort(); v
+      })
+      .field("transform_disallow", &{
+        let mut v: Vec<_> = self.transform_disallow.iter().map(|x| format!("{x:?}")).collect();
+        v.sort(); v
+      })
       .finish()
   }
 }
@@ -290,5 +384,63 @@ mod tests {
     }));
     std::env::remove_var("MAX_CONCURRENT_REQUESTS");
     assert!(result.is_err(), "Expected Configuration::new() to panic");
+  }
+
+  #[test]
+  fn test_disallow_defaults_when_unset() {
+    let _guard = ENV_LOCK.lock().unwrap();
+    std::env::set_var("PORT", "8080");
+    std::env::set_var("APP_ENV", "development");
+    std::env::remove_var("INPUT_DISALLOW_LIST");
+    std::env::remove_var("OUTPUT_DISALLOW_LIST");
+    std::env::remove_var("TRANSFORM_DISALLOW_LIST");
+    let cfg = super::Configuration::new();
+    assert!(cfg.input_disallow.is_empty());
+    assert!(cfg.output_disallow.contains(&super::DisallowedOutput::Avif));
+    assert!(cfg.output_disallow.contains(&super::DisallowedOutput::Jxl));
+    assert_eq!(cfg.output_disallow.len(), 2);
+    assert!(cfg.transform_disallow.contains(&super::DisallowedTransform::Watermark));
+    assert!(cfg.transform_disallow.contains(&super::DisallowedTransform::GifAnim));
+    assert_eq!(cfg.transform_disallow.len(), 2);
+  }
+
+  #[test]
+  fn test_disallow_empty_string_means_all_allowed() {
+    let _guard = ENV_LOCK.lock().unwrap();
+    std::env::set_var("PORT", "8080");
+    std::env::set_var("APP_ENV", "development");
+    std::env::set_var("INPUT_DISALLOW_LIST", "");
+    std::env::set_var("OUTPUT_DISALLOW_LIST", "");
+    std::env::set_var("TRANSFORM_DISALLOW_LIST", "");
+    let cfg = super::Configuration::new();
+    std::env::remove_var("INPUT_DISALLOW_LIST");
+    std::env::remove_var("OUTPUT_DISALLOW_LIST");
+    std::env::remove_var("TRANSFORM_DISALLOW_LIST");
+    assert!(cfg.input_disallow.is_empty());
+    assert!(cfg.output_disallow.is_empty());
+    assert!(cfg.transform_disallow.is_empty());
+  }
+
+  #[test]
+  fn test_disallow_unknown_token_does_not_panic() {
+    let _guard = ENV_LOCK.lock().unwrap();
+    std::env::set_var("PORT", "8080");
+    std::env::set_var("APP_ENV", "development");
+    std::env::set_var("TRANSFORM_DISALLOW_LIST", "blur,not_a_real_op");
+    let cfg = super::Configuration::new();
+    std::env::remove_var("TRANSFORM_DISALLOW_LIST");
+    assert!(cfg.transform_disallow.contains(&super::DisallowedTransform::Blur));
+    assert_eq!(cfg.transform_disallow.len(), 1);
+  }
+
+  #[test]
+  fn test_input_disallow_parses_all_tokens() {
+    let _guard = ENV_LOCK.lock().unwrap();
+    std::env::set_var("PORT", "8080");
+    std::env::set_var("APP_ENV", "development");
+    std::env::set_var("INPUT_DISALLOW_LIST", "jpeg,png,gif,webp,avif,jxl,bmp,tiff,pdf,psd,video");
+    let cfg = super::Configuration::new();
+    std::env::remove_var("INPUT_DISALLOW_LIST");
+    assert_eq!(cfg.input_disallow.len(), 11);
   }
 }

@@ -182,6 +182,9 @@ mod concurrency_tests {
       cors_allow_origin: vec!["*".to_string()],
       cors_max_age_secs: 600,
       max_concurrent_requests: permits,
+      input_disallow: std::collections::HashSet::new(),
+      output_disallow: std::collections::HashSet::new(),
+      transform_disallow: std::collections::HashSet::new(),
     });
     let http = Arc::new(
       HttpFetcher::new(10, 1_000_000, Arc::new(Allowlist::new(vec![])))
