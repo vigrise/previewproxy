@@ -274,11 +274,10 @@ impl Configuration {
         &std::env::var("INPUT_DISALLOW_LIST").unwrap_or_default(),
       ),
       output_disallow: parse_output_disallow(
-        &std::env::var("OUTPUT_DISALLOW_LIST").unwrap_or_else(|_| "avif,jxl".to_string()),
+        &std::env::var("OUTPUT_DISALLOW_LIST").unwrap_or_default(),
       ),
       transform_disallow: parse_transform_disallow(
-        &std::env::var("TRANSFORM_DISALLOW_LIST")
-          .unwrap_or_else(|_| "watermark,gif_anim".to_string()),
+        &std::env::var("TRANSFORM_DISALLOW_LIST").unwrap_or_default(),
       ),
     });
     if cfg.hmac_key.is_none() {

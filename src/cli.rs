@@ -77,6 +77,18 @@ pub struct Cli {
   /// CORS max-age in seconds [env: CORS_MAX_AGE_SECS]
   #[arg(long, env = "CORS_MAX_AGE_SECS", default_value = "600")]
   pub cors_max_age_secs: u64,
+
+  /// Comma-separated input formats to block (jpeg,png,gif,webp,avif,jxl,bmp,tiff,pdf,psd,video) [env: INPUT_DISALLOW_LIST]
+  #[arg(long, env = "INPUT_DISALLOW_LIST", default_value = "")]
+  pub input_disallow_list: String,
+
+  /// Comma-separated output formats to block (jpeg,png,gif,webp,avif,jxl,bmp,tiff,ico) [env: OUTPUT_DISALLOW_LIST]
+  #[arg(long, env = "OUTPUT_DISALLOW_LIST", default_value = "")]
+  pub output_disallow_list: String,
+
+  /// Comma-separated transforms to block (resize,rotate,flip,grayscale,brightness,contrast,blur,watermark,gif_anim) [env: TRANSFORM_DISALLOW_LIST]
+  #[arg(long, env = "TRANSFORM_DISALLOW_LIST", default_value = "")]
+  pub transform_disallow_list: String,
 }
 
 impl Cli {
@@ -104,6 +116,9 @@ impl Cli {
       std::env::set_var("FFPROBE_PATH", &self.ffprobe_path);
       std::env::set_var("CORS_ALLOW_ORIGIN", &self.cors_allow_origin);
       std::env::set_var("CORS_MAX_AGE_SECS", self.cors_max_age_secs.to_string());
+      std::env::set_var("INPUT_DISALLOW_LIST", &self.input_disallow_list);
+      std::env::set_var("OUTPUT_DISALLOW_LIST", &self.output_disallow_list);
+      std::env::set_var("TRANSFORM_DISALLOW_LIST", &self.transform_disallow_list);
     }
   }
 }

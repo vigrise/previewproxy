@@ -18,7 +18,7 @@ A fast, self-hosted image proxy written in Rust. Fetch images from HTTP URLs, S3
 - **Animated GIF pipeline** - output all frames of an animated GIF, optionally applying transforms to a selected frame range
 - **Video thumbnail extraction** - extract a frame from MP4, MKV, AVI and pass it through the normal transform pipeline
 - **Multi-tier cache** - L1 in-memory (moka) + L2 disk with singleflight dedup
-- **Security** - domain allowlist, optional HMAC request signing, configurable CORS origins, SSRF protection (private IP blocking, per-hop allowlist re-validation on redirects).
+- **Security** - domain allowlist, optional HMAC request signing, configurable CORS origins, SSRF protection (private IP blocking, per-hop allowlist re-validation on redirects), input/output/transform disallow lists.
 
 ## Request Styles
 
@@ -149,6 +149,9 @@ Configuration is read from environment variables (`.env` file) or CLI flags - CL
 | `--ffprobe-path`                | `FFPROBE_PATH`                | (same dir as ffmpeg) | Path to the ffprobe binary; defaults to `ffprobe` in the same directory as ffmpeg                                |
 | `--cors-allow-origin`           | `CORS_ALLOW_ORIGIN`           | `*`                 | Comma-separated allowed CORS origins; `*` = allow all; wildcards (`*.example.com`) match a single subdomain label |
 | `--cors-max-age-secs`           | `CORS_MAX_AGE_SECS`           | `600`               | CORS preflight cache duration (seconds)                                                                           |
+| `--input-disallow-list`         | `INPUT_DISALLOW_LIST`         | -                   | Comma-separated input formats to block: `jpeg`, `png`, `gif`, `webp`, `avif`, `jxl`, `bmp`, `tiff`, `pdf`, `psd`, `video` |
+| `--output-disallow-list`        | `OUTPUT_DISALLOW_LIST`        | `avif,jxl`          | Comma-separated output formats to block: `jpeg`, `png`, `gif`, `webp`, `avif`, `jxl`, `bmp`, `tiff`, `ico`      |
+| `--transform-disallow-list`     | `TRANSFORM_DISALLOW_LIST`     | `watermark,gif_anim`| Comma-separated transforms to block: `resize`, `rotate`, `flip`, `grayscale`, `brightness`, `contrast`, `blur`, `watermark`, `gif_anim` |
 | -                               | `RUST_LOG`                    | `server=info,...`   | Log level filter                                                                                                  |
 
 ---
@@ -184,6 +187,39 @@ CORS_ALLOW_ORIGIN=https://app.example.com,*.cdn.example.com
 ```
 
 Leave as `*` (default) to allow any origin.
+
+### Disallow Lists
+
+Block specific input formats, output formats, or transforms via env vars. Each accepts a comma-separated list of tokens; unknown tokens are ignored with a warning.
+
+**Input formats** (`INPUT_DISALLOW_LIST`) - reject requests whose source image matches a blocked format (returns 400):
+
+```ini
+# Block video thumbnails and PDF inputs
+INPUT_DISALLOW_LIST=video,pdf
+```
+
+Tokens: `jpeg`, `png`, `gif`, `webp`, `avif`, `jxl`, `bmp`, `tiff`, `pdf`, `psd`, `video`
+
+**Output formats** (`OUTPUT_DISALLOW_LIST`) - reject requests that would produce a blocked format (returns 400). Defaults to `avif,jxl`:
+
+```ini
+# Allow all output formats
+OUTPUT_DISALLOW_LIST=
+```
+
+Tokens: `jpeg`, `png`, `gif`, `webp`, `avif`, `jxl`, `bmp`, `tiff`, `ico`
+
+**Transforms** (`TRANSFORM_DISALLOW_LIST`) - reject requests that apply a blocked transform (returns 400). Defaults to `watermark,gif_anim`:
+
+```ini
+# Block watermarking and animated GIF processing only
+TRANSFORM_DISALLOW_LIST=watermark,gif_anim
+```
+
+Tokens: `resize`, `rotate`, `flip`, `grayscale`, `brightness`, `contrast`, `blur`, `watermark`, `gif_anim`
+
+> **Note:** Input disallow checks are not applied to sources with no `Content-Type` header (e.g. S3 objects without metadata), as the format cannot be determined before fetching.
 
 ### SSRF Protection
 
