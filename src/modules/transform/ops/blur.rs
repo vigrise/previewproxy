@@ -5,7 +5,7 @@ pub fn gaussian_blur(img: DynamicImage, sigma: f32) -> Result<DynamicImage, Prox
   if sigma <= 0.0 {
     return Ok(img);
   }
-  Ok(img.blur(sigma))
+  Ok(img.fast_blur(sigma))
 }
 
 #[cfg(test)]

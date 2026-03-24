@@ -249,7 +249,11 @@ impl ProxyService {
       .map(|ct| ct.starts_with("video/"))
       .unwrap_or_else(|| crate::modules::proxy::sources::video::is_video_magic(&src_bytes));
 
-    if is_video && self.input_disallow.contains(&crate::common::config::DisallowedInput::Video) {
+    if is_video
+      && self
+        .input_disallow
+        .contains(&crate::common::config::DisallowedInput::Video)
+    {
       guard.complete(Err(ProxyError::TransformDisabled("video".to_string())));
       return Err(ProxyError::TransformDisabled("video".to_string()));
     }
@@ -295,6 +299,10 @@ impl ProxyService {
       }
     }
 
+    // Input disallow check on buffered path.
+    // Note: if the fetcher returns no content-type (src_ct is None), this check is skipped.
+    // Magic-byte-only sources (e.g. S3 objects without a content-type header) bypass
+    // INPUT_DISALLOW_LIST. This is a known limitation.
     if let Some(ref ct) = src_ct {
       if let Err(e) = self.check_input_disallow(ct) {
         guard.complete(Err(e.clone()));
@@ -308,12 +316,19 @@ impl ProxyService {
 
     // 10. If has_transforms or is_pdf: run_pipeline(); else resolve_content_type()
     let pipeline_result = if params.has_transforms() || is_pdf {
-      pipeline::run_pipeline(params, src_bytes, src_ct, self.fetcher.clone(), &self.output_disallow, &self.transform_disallow)
-        .await
-        .map(|(bytes, ct)| CacheEntry {
-          bytes,
-          content_type: ct,
-        })
+      pipeline::run_pipeline(
+        params,
+        src_bytes,
+        src_ct,
+        self.fetcher.clone(),
+        &self.output_disallow,
+        &self.transform_disallow,
+      )
+      .await
+      .map(|(bytes, ct)| CacheEntry {
+        bytes,
+        content_type: ct,
+      })
     } else {
       resolve_content_type(src_ct.as_deref(), &src_bytes).map(|ct| CacheEntry {
         bytes: src_bytes,
@@ -346,16 +361,16 @@ impl ProxyService {
   fn check_input_disallow(&self, content_type: &str) -> Result<(), ProxyError> {
     use crate::common::config::DisallowedInput;
     let token = match content_type {
-      "image/jpeg"                 => Some(DisallowedInput::Jpeg),
-      "image/png"                  => Some(DisallowedInput::Png),
-      "image/gif"                  => Some(DisallowedInput::Gif),
-      "image/webp"                 => Some(DisallowedInput::Webp),
-      "image/avif"                 => Some(DisallowedInput::Avif),
-      "image/jxl"                  => Some(DisallowedInput::Jxl),
-      "image/bmp"                  => Some(DisallowedInput::Bmp),
-      "image/tiff"                 => Some(DisallowedInput::Tiff),
-      "application/pdf"            => Some(DisallowedInput::Pdf),
-      "image/vnd.adobe.photoshop"  => Some(DisallowedInput::Psd),
+      "image/jpeg" => Some(DisallowedInput::Jpeg),
+      "image/png" => Some(DisallowedInput::Png),
+      "image/gif" => Some(DisallowedInput::Gif),
+      "image/webp" => Some(DisallowedInput::Webp),
+      "image/avif" => Some(DisallowedInput::Avif),
+      "image/jxl" => Some(DisallowedInput::Jxl),
+      "image/bmp" => Some(DisallowedInput::Bmp),
+      "image/tiff" => Some(DisallowedInput::Tiff),
+      "application/pdf" => Some(DisallowedInput::Pdf),
+      "image/vnd.adobe.photoshop" => Some(DisallowedInput::Psd),
       _ => None,
     };
     if let Some(t) = token {
@@ -577,9 +592,11 @@ mod tests {
       fetcher,
       http_fetcher: Arc::new(
         crate::modules::proxy::sources::http::HttpFetcher::new(
-          10, 1_000_000,
+          10,
+          1_000_000,
           Arc::new(crate::modules::security::allowlist::Allowlist::new(vec![])),
-        ).with_private_ip_check(false),
+        )
+        .with_private_ip_check(false),
       ),
       cache,
       allowlist: Allowlist::new(vec![]),
@@ -592,11 +609,15 @@ mod tests {
       transform_disallow: std::collections::HashSet::new(),
     };
     let params = TransformParams::default();
-    let result = svc.process(
-      params,
-      "s3:/v.mp4".to_string(),
-      Arc::new(tokio::sync::Semaphore::new(1)).try_acquire_owned().unwrap(),
-    ).await;
+    let result = svc
+      .process(
+        params,
+        "s3:/v.mp4".to_string(),
+        Arc::new(tokio::sync::Semaphore::new(1))
+          .try_acquire_owned()
+          .unwrap(),
+      )
+      .await;
     assert!(
       matches!(result, Err(ProxyError::TransformDisabled(_))),
       "expected TransformDisabled for disallowed video input, got: {result:?}"
@@ -844,11 +865,13 @@ mod streaming_tests {
     let (mut svc, _cache) = make_svc(1_000_000);
     svc.input_disallow.insert(DisallowedInput::Png);
 
-    let result = svc.process(
-      TransformParams::default(),
-      format!("{}/img.png", server.uri()),
-      permit(),
-    ).await;
+    let result = svc
+      .process(
+        TransformParams::default(),
+        format!("{}/img.png", server.uri()),
+        permit(),
+      )
+      .await;
 
     assert!(
       matches!(result, Err(ProxyError::TransformDisabled(_))),
