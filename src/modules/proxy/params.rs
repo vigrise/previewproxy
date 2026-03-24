@@ -229,6 +229,31 @@ impl TransformParams {
   }
 }
 
+fn parse_gif_anim_value(s: &str) -> Result<GifAnimRange, ProxyError> {
+  if s.is_empty() || s == "all" {
+    return Ok(GifAnimRange::All);
+  }
+  if let Some(rest) = s.strip_prefix('-') {
+    let n = rest
+      .parse::<usize>()
+      .map_err(|_| ProxyError::InvalidParams("invalid gif_anim".to_string()))?;
+    return Ok(GifAnimRange::Last(n));
+  }
+  if let Some((x_str, y_str)) = s.split_once('-') {
+    let x = x_str
+      .parse::<usize>()
+      .map_err(|_| ProxyError::InvalidParams("invalid gif_anim".to_string()))?;
+    let y = y_str
+      .parse::<usize>()
+      .map_err(|_| ProxyError::InvalidParams("invalid gif_anim".to_string()))?;
+    return Ok(GifAnimRange::Range(x, y));
+  }
+  let x = s
+    .parse::<usize>()
+    .map_err(|_| ProxyError::InvalidParams("invalid gif_anim".to_string()))?;
+  Ok(GifAnimRange::From(x))
+}
+
 const MAX_DIMENSION: u32 = 8192;
 const MAX_BLUR: f32 = 100.0;
 
@@ -310,6 +335,20 @@ fn parse_options(opts: &str) -> Result<TransformParams, ProxyError> {
     // sig:hash
     if let Some(val) = token.strip_prefix("sig:") {
       p.sig = Some(val.to_string());
+      continue;
+    }
+    // gif_anim / gif_anim:X / gif_anim:X-Y / gif_anim:-N
+    if token == "gif_anim" {
+      p.gif_anim = Some(GifAnimRange::All);
+      continue;
+    }
+    if let Some(val) = token.strip_prefix("gif_anim:") {
+      p.gif_anim = Some(parse_gif_anim_value(val)?);
+      continue;
+    }
+    // gif_af
+    if token == "gif_af" {
+      p.gif_af = Some(true);
       continue;
     }
     match token {
@@ -410,6 +449,12 @@ pub fn from_query(
         .map_err(|_| ProxyError::InvalidParams("invalid seek".to_string()))?;
       p.seek = Some(SeekMode::Absolute(secs.max(0.0)));
     }
+  }
+  if let Some(v) = query.get("gif_anim") {
+    p.gif_anim = Some(parse_gif_anim_value(v)?);
+  }
+  if let Some(v) = query.get("gif_af") {
+    p.gif_af = Some(v == "1" || v.eq_ignore_ascii_case("true"));
   }
   p.w = p.w.map(|v| v.min(MAX_DIMENSION));
   p.h = p.h.map(|v| v.min(MAX_DIMENSION));
@@ -831,6 +876,128 @@ mod tests {
       ..Default::default()
     };
     assert!(!p.canonical_string("u").contains("gif_af"));
+  }
+
+  // --- Parse tests (Task 2) ---
+
+  #[test]
+  fn test_gif_anim_path_all() {
+    use super::GifAnimRange;
+    let (p, _) = TransformParams::from_path("gif_anim/https://x.com/a.gif").unwrap();
+    assert!(matches!(p.gif_anim, Some(GifAnimRange::All)));
+  }
+
+  #[test]
+  fn test_gif_anim_path_from() {
+    use super::GifAnimRange;
+    let (p, _) = TransformParams::from_path("gif_anim:2/https://x.com/a.gif").unwrap();
+    assert!(matches!(p.gif_anim, Some(GifAnimRange::From(2))));
+  }
+
+  #[test]
+  fn test_gif_anim_path_range() {
+    use super::GifAnimRange;
+    let (p, _) = TransformParams::from_path("gif_anim:1-5/https://x.com/a.gif").unwrap();
+    assert!(matches!(p.gif_anim, Some(GifAnimRange::Range(1, 5))));
+  }
+
+  #[test]
+  fn test_gif_anim_path_last() {
+    use super::GifAnimRange;
+    let (p, _) = TransformParams::from_path("gif_anim:-3/https://x.com/a.gif").unwrap();
+    assert!(matches!(p.gif_anim, Some(GifAnimRange::Last(3))));
+  }
+
+  #[test]
+  fn test_gif_af_path() {
+    let (p, _) = TransformParams::from_path("gif_af/https://x.com/a.gif").unwrap();
+    assert_eq!(p.gif_af, Some(true));
+  }
+
+  #[test]
+  fn test_gif_anim_query_all_keyword() {
+    use super::GifAnimRange;
+    let mut map = std::collections::HashMap::new();
+    map.insert("gif_anim".to_string(), "all".to_string());
+    let p = super::from_query(&map).unwrap();
+    assert!(matches!(p.gif_anim, Some(GifAnimRange::All)));
+  }
+
+  #[test]
+  fn test_gif_anim_query_all_empty() {
+    use super::GifAnimRange;
+    let mut map = std::collections::HashMap::new();
+    map.insert("gif_anim".to_string(), "".to_string());
+    let p = super::from_query(&map).unwrap();
+    assert!(matches!(p.gif_anim, Some(GifAnimRange::All)));
+  }
+
+  #[test]
+  fn test_gif_anim_query_from() {
+    use super::GifAnimRange;
+    let mut map = std::collections::HashMap::new();
+    map.insert("gif_anim".to_string(), "2".to_string());
+    let p = super::from_query(&map).unwrap();
+    assert!(matches!(p.gif_anim, Some(GifAnimRange::From(2))));
+  }
+
+  #[test]
+  fn test_gif_anim_query_range() {
+    use super::GifAnimRange;
+    let mut map = std::collections::HashMap::new();
+    map.insert("gif_anim".to_string(), "1-5".to_string());
+    let p = super::from_query(&map).unwrap();
+    assert!(matches!(p.gif_anim, Some(GifAnimRange::Range(1, 5))));
+  }
+
+  #[test]
+  fn test_gif_anim_query_last() {
+    use super::GifAnimRange;
+    let mut map = std::collections::HashMap::new();
+    map.insert("gif_anim".to_string(), "-3".to_string());
+    let p = super::from_query(&map).unwrap();
+    assert!(matches!(p.gif_anim, Some(GifAnimRange::Last(3))));
+  }
+
+  #[test]
+  fn test_gif_af_query() {
+    let mut map = std::collections::HashMap::new();
+    map.insert("gif_af".to_string(), "1".to_string());
+    let p = super::from_query(&map).unwrap();
+    assert_eq!(p.gif_af, Some(true));
+  }
+
+  #[test]
+  fn test_gif_af_query_false() {
+    let mut map = std::collections::HashMap::new();
+    map.insert("gif_af".to_string(), "false".to_string());
+    let p = super::from_query(&map).unwrap();
+    assert_eq!(p.gif_af, Some(false));
+  }
+
+  #[test]
+  fn test_gif_af_query_zero() {
+    let mut map = std::collections::HashMap::new();
+    map.insert("gif_af".to_string(), "0".to_string());
+    let p = super::from_query(&map).unwrap();
+    assert_eq!(p.gif_af, Some(false));
+  }
+
+  #[test]
+  fn test_gif_anim_path_last_zero_parses_to_last_zero() {
+    use super::GifAnimRange;
+    // gif_anim:-0 must parse to Last(0) so the runtime error path is exercised
+    let (p, _) = TransformParams::from_path("gif_anim:-0/https://x.com/a.gif").unwrap();
+    assert!(matches!(p.gif_anim, Some(GifAnimRange::Last(0))));
+  }
+
+  #[test]
+  fn test_gif_anim_query_last_zero_parses_to_last_zero() {
+    use super::GifAnimRange;
+    let mut map = std::collections::HashMap::new();
+    map.insert("gif_anim".to_string(), "-0".to_string());
+    let p = super::from_query(&map).unwrap();
+    assert!(matches!(p.gif_anim, Some(GifAnimRange::Last(0))));
   }
 
   #[test]
