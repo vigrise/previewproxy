@@ -35,6 +35,8 @@ pub enum ProxyError {
   VideoDecodeError,
   #[error("unsupported_format")]
   UnsupportedFormat(String),
+  #[error("transform_disabled")]
+  TransformDisabled(String),
   #[error("internal_error")]
   InternalError(String),
 }
@@ -69,11 +71,13 @@ impl IntoResponse for ProxyError {
         StatusCode::UNPROCESSABLE_ENTITY
       }
       ProxyError::UnsupportedFormat(_) => StatusCode::BAD_REQUEST,
+      ProxyError::TransformDisabled(_) => StatusCode::BAD_REQUEST,
       ProxyError::InternalError(_) => StatusCode::INTERNAL_SERVER_ERROR,
     };
     let detail = match &self {
       ProxyError::InvalidParams(d) => Some(d.clone()),
       ProxyError::UnsupportedFormat(d) => Some(d.clone()),
+      ProxyError::TransformDisabled(d) => Some(d.clone()),
       _ => None,
     };
     let body = ErrorBody { error: msg, detail };
@@ -109,5 +113,12 @@ mod tests {
   fn test_pdf_render_error_is_422() {
     let resp = ProxyError::PdfRenderError.into_response();
     assert_eq!(resp.status(), hyper::StatusCode::UNPROCESSABLE_ENTITY);
+  }
+
+  #[test]
+  fn test_transform_disabled_is_400() {
+    let err = ProxyError::TransformDisabled("watermark".to_string());
+    let resp = err.into_response();
+    assert_eq!(resp.status(), hyper::StatusCode::BAD_REQUEST);
   }
 }
