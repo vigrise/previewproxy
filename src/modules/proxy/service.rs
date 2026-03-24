@@ -339,6 +339,10 @@ impl ProxyService {
     Ok(ProcessResult::Cached(entry, CacheHit::Miss))
   }
 
+  /// Check if a content-type is in the input disallow list.
+  /// Does NOT handle `video/*` MIME types - video is blocked via `DisallowedInput::Video`
+  /// before the video extraction path, not through this function.
+  /// Returns `Ok(())` for unknown or unrecognized content types.
   fn check_input_disallow(&self, content_type: &str) -> Result<(), ProxyError> {
     use crate::common::config::DisallowedInput;
     let token = match content_type {
