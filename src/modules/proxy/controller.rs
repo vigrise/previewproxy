@@ -3,7 +3,7 @@ use crate::common::errors::ProxyError;
 use crate::modules::cache::manager::CacheHit;
 use crate::modules::cache::memory::CacheEntry;
 use crate::modules::proxy::{
-  params::{from_query, TransformParams},
+  dto::params::{from_query, TransformParams},
   service::{ProcessResult, ProxyService},
 };
 use crate::modules::AppState;

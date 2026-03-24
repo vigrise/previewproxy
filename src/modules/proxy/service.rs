@@ -1,7 +1,8 @@
 use crate::common::errors::ProxyError;
 use crate::modules::cache::manager::{CacheHit, CacheManager};
 use crate::modules::cache::memory::CacheEntry;
-use crate::modules::proxy::{fetchable::Fetchable, params::TransformParams};
+use crate::modules::proxy::{dto::params::TransformParams, fetchable::Fetchable};
+pub use crate::modules::proxy::dto::response::ProcessResult;
 use crate::modules::security::{allowlist::Allowlist, hmac};
 use crate::modules::transform::pipeline::{self, resolve_content_type};
 use crate::modules::AppState;
@@ -9,30 +10,6 @@ use bytes::Bytes;
 use std::sync::Arc;
 use tokio::sync::{mpsc, OwnedSemaphorePermit};
 use url::Url;
-
-pub enum ProcessResult {
-  Cached(CacheEntry, CacheHit),
-  Stream {
-    /// Client-facing stream. Holds permit; drops permit when stream ends.
-    body: futures::stream::BoxStream<'static, Result<Bytes, ProxyError>>,
-    content_type: String,
-  },
-}
-
-impl std::fmt::Debug for ProcessResult {
-  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    match self {
-      ProcessResult::Cached(_, _) => write!(f, "ProcessResult::Cached"),
-      ProcessResult::Stream { content_type, .. } => {
-        write!(
-          f,
-          "ProcessResult::Stream {{ content_type: {:?} }}",
-          content_type
-        )
-      }
-    }
-  }
-}
 
 pub struct ProxyService {
   fetcher: Arc<dyn Fetchable>,
@@ -259,7 +236,7 @@ impl ProxyService {
     }
 
     if is_video {
-      use crate::modules::proxy::params::SeekMode;
+      use crate::modules::proxy::dto::params::SeekMode;
       use crate::modules::proxy::sources::video::{extract_frame, probe_duration};
 
       let t_secs = match &params.seek {
@@ -629,7 +606,7 @@ mod tests {
 mod streaming_tests {
   use super::*;
   use crate::modules::cache::manager::CacheManager;
-  use crate::modules::proxy::params::TransformParams;
+  use crate::modules::proxy::dto::params::TransformParams;
   use crate::modules::proxy::sources::http::HttpFetcher;
   use crate::modules::security::allowlist::Allowlist;
   use futures::StreamExt;

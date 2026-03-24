@@ -1,5 +1,5 @@
 use crate::common::errors::ProxyError;
-use crate::modules::proxy::params::{GifAnimRange, TransformParams};
+use crate::modules::proxy::dto::params::{GifAnimRange, TransformParams};
 use crate::modules::transform::ops;
 use image::codecs::gif::{GifDecoder, GifEncoder, Repeat};
 use image::{AnimationDecoder, DynamicImage, Frame};
@@ -132,7 +132,7 @@ pub fn run(
 #[cfg(test)]
 mod tests {
   use super::*;
-  use crate::modules::proxy::params::TransformParams;
+  use crate::modules::proxy::dto::params::TransformParams;
   use crate::modules::transform::test_helpers::tiny_gif_anim_bytes;
 
   fn frame_count(bytes: &[u8]) -> usize {

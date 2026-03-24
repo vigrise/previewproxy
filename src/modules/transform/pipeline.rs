@@ -1,5 +1,5 @@
 use crate::common::errors::ProxyError;
-use crate::modules::proxy::{fetchable::Fetchable, params::TransformParams};
+use crate::modules::proxy::{dto::params::TransformParams, fetchable::Fetchable};
 use crate::modules::transform::ops;
 use image::{DynamicImage, ImageReader};
 use std::{io::Cursor, sync::Arc};
@@ -212,7 +212,7 @@ pub async fn run_pipeline(
 #[cfg(test)]
 mod tests {
   use super::*;
-  use crate::modules::proxy::params::TransformParams;
+  use crate::modules::proxy::dto::params::TransformParams;
   use crate::modules::security::allowlist::Allowlist;
   use crate::modules::transform::test_helpers::tiny_png_bytes;
   use std::sync::Arc;
@@ -316,7 +316,7 @@ mod tests {
 
   #[tokio::test]
   async fn test_gif_anim_all_frames_pipeline() {
-    use crate::modules::proxy::params::GifAnimRange;
+    use crate::modules::proxy::dto::params::GifAnimRange;
     use crate::modules::transform::test_helpers::tiny_gif_anim_bytes;
     use image::codecs::gif::GifDecoder;
     use image::AnimationDecoder;
@@ -348,7 +348,7 @@ mod tests {
   #[tokio::test]
   async fn test_gif_anim_passthrough_not_taken() {
     // gif_anim alone with no other transforms must still re-encode (not passthrough)
-    use crate::modules::proxy::params::GifAnimRange;
+    use crate::modules::proxy::dto::params::GifAnimRange;
     use crate::modules::transform::test_helpers::tiny_gif_anim_bytes;
     use image::codecs::gif::GifDecoder;
     use image::AnimationDecoder;
@@ -377,7 +377,7 @@ mod tests {
 
   #[tokio::test]
   async fn test_gif_anim_on_non_gif_uses_static_path() {
-    use crate::modules::proxy::params::GifAnimRange;
+    use crate::modules::proxy::dto::params::GifAnimRange;
     use crate::modules::transform::test_helpers::tiny_png_bytes;
 
     let params = TransformParams {
