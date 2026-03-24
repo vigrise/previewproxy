@@ -41,13 +41,6 @@ impl CacheManager {
     format!("{:x}", Sha256::digest(canonical.as_bytes()))
   }
 
-  pub fn final_key(canonical: &str, mime: &str) -> String {
-    format!(
-      "{:x}",
-      Sha256::digest(format!("{canonical}:{mime}").as_bytes())
-    )
-  }
-
   pub async fn get(&self, prelim_key: &str) -> (Option<CacheEntry>, CacheHit) {
     if let Some(e) = self.l1.get(prelim_key).await {
       return (Some(e), CacheHit::L1);

@@ -70,6 +70,35 @@ pub async fn run_pipeline(
 
   // 4. Run synchronous image ops in spawn_blocking
   let params_clone = params.clone();
+
+  // 4a. Animated GIF path
+  if params_clone.gif_anim.is_some() && resolved_ct == "image/gif" {
+    let range = params_clone.gif_anim.clone().unwrap();
+    let all_frames = params_clone.gif_af.unwrap_or(false);
+    let result = spawn_blocking(move || {
+      let wm_img = if let Some(wm_data) = wm_bytes {
+        let wm = image::ImageReader::new(std::io::Cursor::new(wm_data))
+          .with_guessed_format()
+          .map_err(|e| ProxyError::InternalError(e.to_string()))?
+          .decode()
+          .map_err(|e| ProxyError::InternalError(e.to_string()))?;
+        Some(wm)
+      } else {
+        None
+      };
+      crate::modules::transform::ops::gif_anim::run(
+        &src_bytes,
+        &range,
+        all_frames,
+        &params_clone,
+        wm_img,
+      )
+    })
+    .await
+    .map_err(|e| ProxyError::InternalError(format!("spawn_blocking panic: {e}")))?;
+    return result.map(|bytes| (bytes, "image/gif".to_string()));
+  }
+
   let resolved_ct_clone = resolved_ct.clone();
   let result = spawn_blocking(move || -> Result<(Vec<u8>, String), ProxyError> {
     let mut img = crate::modules::transform::ops::decode::dispatch(&resolved_ct_clone, &src_bytes)?;
@@ -198,5 +227,87 @@ mod tests {
     let jxl_magic = &[0xFF, 0x0A, 0x00, 0x00];
     let result = resolve_content_type(None, jxl_magic);
     assert!(result.is_ok(), "JXL magic bytes should be detected");
+  }
+
+  #[tokio::test]
+  async fn test_gif_anim_all_frames_pipeline() {
+    use crate::modules::proxy::params::GifAnimRange;
+    use crate::modules::transform::test_helpers::tiny_gif_anim_bytes;
+    use image::codecs::gif::GifDecoder;
+    use image::AnimationDecoder;
+    use std::io::Cursor;
+
+    let params = TransformParams {
+      gif_anim: Some(GifAnimRange::All),
+      w: Some(2),
+      h: Some(2),
+      ..Default::default()
+    };
+    let bytes = tiny_gif_anim_bytes();
+    let (out, ct) = run_pipeline(params, bytes, Some("image/gif".to_string()), test_fetcher())
+      .await
+      .unwrap();
+    assert_eq!(ct, "image/gif");
+    let decoder = GifDecoder::new(Cursor::new(&out)).unwrap();
+    let frames = decoder.into_frames().collect_frames().unwrap();
+    assert_eq!(frames.len(), 3);
+  }
+
+  #[tokio::test]
+  async fn test_gif_anim_passthrough_not_taken() {
+    // gif_anim alone with no other transforms must still re-encode (not passthrough)
+    use crate::modules::proxy::params::GifAnimRange;
+    use crate::modules::transform::test_helpers::tiny_gif_anim_bytes;
+    use image::codecs::gif::GifDecoder;
+    use image::AnimationDecoder;
+    use std::io::Cursor;
+
+    let params = TransformParams {
+      gif_anim: Some(GifAnimRange::All),
+      ..Default::default()
+    };
+    let bytes = tiny_gif_anim_bytes();
+    let (out, ct) = run_pipeline(params, bytes, Some("image/gif".to_string()), test_fetcher())
+      .await
+      .unwrap();
+    assert_eq!(ct, "image/gif");
+    let decoder = GifDecoder::new(Cursor::new(&out)).unwrap();
+    let frames = decoder.into_frames().collect_frames().unwrap();
+    assert_eq!(frames.len(), 3);
+  }
+
+  #[tokio::test]
+  async fn test_gif_anim_on_non_gif_uses_static_path() {
+    use crate::modules::proxy::params::GifAnimRange;
+    use crate::modules::transform::test_helpers::tiny_png_bytes;
+
+    let params = TransformParams {
+      gif_anim: Some(GifAnimRange::All),
+      ..Default::default()
+    };
+    let bytes = tiny_png_bytes();
+    let (out, ct) = run_pipeline(params, bytes, Some("image/png".to_string()), test_fetcher())
+      .await
+      .unwrap();
+    // Static path default format is jpeg
+    assert_eq!(ct, "image/jpeg");
+    assert!(!out.is_empty());
+  }
+
+  #[tokio::test]
+  async fn test_static_path_unaffected_no_gif_anim() {
+    // PNG without gif_anim must still take the existing static path
+    let params = TransformParams {
+      w: Some(2),
+      h: Some(2),
+      format: Some("png".to_string()),
+      ..Default::default()
+    };
+    let bytes = tiny_png_bytes();
+    let (out, ct) = run_pipeline(params, bytes, Some("image/png".to_string()), test_fetcher())
+      .await
+      .unwrap();
+    assert_eq!(ct, "image/png");
+    assert_eq!(&out[1..4], b"PNG");
   }
 }
