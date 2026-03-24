@@ -1,3 +1,4 @@
+pub mod cli;
 pub mod cache;
 pub mod health;
 pub mod proxy;

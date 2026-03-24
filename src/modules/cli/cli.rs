@@ -1,4 +1,5 @@
 use clap::Parser;
+use crate::modules::cli::dto::Commands;
 
 /// ViGrise PreviewProxy - on-the-fly image proxy and transformer
 #[derive(Parser)]
@@ -89,6 +90,9 @@ pub struct Cli {
   /// Comma-separated transforms to block (resize,rotate,flip,grayscale,brightness,contrast,blur,watermark,gif_anim) [env: TRANSFORM_DISALLOW_LIST]
   #[arg(long, env = "TRANSFORM_DISALLOW_LIST", default_value = "")]
   pub transform_disallow_list: String,
+
+  #[command(subcommand)]
+  pub command: Option<Commands>,
 }
 
 impl Cli {
