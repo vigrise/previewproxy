@@ -150,8 +150,8 @@ Configuration is read from environment variables (`.env` file) or CLI flags - CL
 | `--cors-allow-origin`           | `CORS_ALLOW_ORIGIN`           | `*`                 | Comma-separated allowed CORS origins; `*` = allow all; wildcards (`*.example.com`) match a single subdomain label |
 | `--cors-max-age-secs`           | `CORS_MAX_AGE_SECS`           | `600`               | CORS preflight cache duration (seconds)                                                                           |
 | `--input-disallow-list`         | `INPUT_DISALLOW_LIST`         | -                   | Comma-separated input formats to block: `jpeg`, `png`, `gif`, `webp`, `avif`, `jxl`, `bmp`, `tiff`, `pdf`, `psd`, `video` |
-| `--output-disallow-list`        | `OUTPUT_DISALLOW_LIST`        | `avif,jxl`          | Comma-separated output formats to block: `jpeg`, `png`, `gif`, `webp`, `avif`, `jxl`, `bmp`, `tiff`, `ico`      |
-| `--transform-disallow-list`     | `TRANSFORM_DISALLOW_LIST`     | `watermark,gif_anim`| Comma-separated transforms to block: `resize`, `rotate`, `flip`, `grayscale`, `brightness`, `contrast`, `blur`, `watermark`, `gif_anim` |
+| `--output-disallow-list`        | `OUTPUT_DISALLOW_LIST`        | -                   | Comma-separated output formats to block: `jpeg`, `png`, `gif`, `webp`, `avif`, `jxl`, `bmp`, `tiff`, `ico`      |
+| `--transform-disallow-list`     | `TRANSFORM_DISALLOW_LIST`     | -                   | Comma-separated transforms to block: `resize`, `rotate`, `flip`, `grayscale`, `brightness`, `contrast`, `blur`, `watermark`, `gif_anim` |
 | -                               | `RUST_LOG`                    | `server=info,...`   | Log level filter                                                                                                  |
 
 ---
@@ -201,7 +201,7 @@ INPUT_DISALLOW_LIST=video,pdf
 
 Tokens: `jpeg`, `png`, `gif`, `webp`, `avif`, `jxl`, `bmp`, `tiff`, `pdf`, `psd`, `video`
 
-**Output formats** (`OUTPUT_DISALLOW_LIST`) - reject requests that would produce a blocked format (returns 400). Defaults to `avif,jxl`:
+**Output formats** (`OUTPUT_DISALLOW_LIST`) - reject requests that would produce a blocked format (returns 400). Defaults to empty (allow all):
 
 ```ini
 # Allow all output formats
@@ -210,7 +210,7 @@ OUTPUT_DISALLOW_LIST=
 
 Tokens: `jpeg`, `png`, `gif`, `webp`, `avif`, `jxl`, `bmp`, `tiff`, `ico`
 
-**Transforms** (`TRANSFORM_DISALLOW_LIST`) - reject requests that apply a blocked transform (returns 400). Defaults to `watermark,gif_anim`:
+**Transforms** (`TRANSFORM_DISALLOW_LIST`) - reject requests that apply a blocked transform (returns 400). Defaults to empty (allow all):
 
 ```ini
 # Block watermarking and animated GIF processing only

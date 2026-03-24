@@ -1,7 +1,10 @@
 use crate::common::errors::ProxyError;
 use crate::modules::cache::manager::{CacheHit, CacheManager};
 use crate::modules::cache::memory::CacheEntry;
-use crate::modules::proxy::{dto::{params::TransformParams, ProcessResult}, fetchable::Fetchable};
+use crate::modules::proxy::{
+  dto::{params::TransformParams, ProcessResult},
+  fetchable::Fetchable,
+};
 use crate::modules::security::{allowlist::Allowlist, hmac};
 use crate::modules::transform::pipeline::{self, resolve_content_type};
 use crate::modules::AppState;

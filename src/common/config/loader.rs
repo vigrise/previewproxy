@@ -216,11 +216,10 @@ impl Configuration {
         &std::env::var("INPUT_DISALLOW_LIST").unwrap_or_default(),
       ),
       output_disallow: parse_output_disallow(
-        &std::env::var("OUTPUT_DISALLOW_LIST").unwrap_or_else(|_| "avif,jxl".to_string()),
+        &std::env::var("OUTPUT_DISALLOW_LIST").unwrap_or_default(),
       ),
       transform_disallow: parse_transform_disallow(
-        &std::env::var("TRANSFORM_DISALLOW_LIST")
-          .unwrap_or_else(|_| "watermark,gif_anim".to_string()),
+        &std::env::var("TRANSFORM_DISALLOW_LIST").unwrap_or_default(),
       ),
     });
     if cfg.hmac_key.is_none() {
@@ -398,16 +397,8 @@ mod tests {
     std::env::remove_var("TRANSFORM_DISALLOW_LIST");
     let cfg = super::Configuration::new();
     assert!(cfg.input_disallow.is_empty());
-    assert!(cfg.output_disallow.contains(&super::DisallowedOutput::Avif));
-    assert!(cfg.output_disallow.contains(&super::DisallowedOutput::Jxl));
-    assert_eq!(cfg.output_disallow.len(), 2);
-    assert!(cfg
-      .transform_disallow
-      .contains(&super::DisallowedTransform::Watermark));
-    assert!(cfg
-      .transform_disallow
-      .contains(&super::DisallowedTransform::GifAnim));
-    assert_eq!(cfg.transform_disallow.len(), 2);
+    assert!(cfg.output_disallow.is_empty());
+    assert!(cfg.transform_disallow.is_empty());
   }
 
   #[test]
