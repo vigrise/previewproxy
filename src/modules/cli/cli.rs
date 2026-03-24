@@ -1,5 +1,5 @@
-use clap::Parser;
 use crate::modules::cli::dto::Commands;
+use clap::Parser;
 
 /// ViGrise PreviewProxy - on-the-fly image proxy and transformer
 #[derive(Parser)]
