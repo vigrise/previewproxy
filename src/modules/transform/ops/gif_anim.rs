@@ -21,16 +21,16 @@ pub fn run(
         .map_err(|e| ProxyError::InternalError(e.to_string()))?;
     let total = frames.len();
 
-    // Resolve in-range indices
-    let in_range: std::collections::HashSet<usize> = match range {
-        GifAnimRange::All => (0..total).collect(),
+    // Resolve in-range bounds as (start, end) inclusive - all variants produce contiguous ranges
+    let (range_start, range_end) = match range {
+        GifAnimRange::All => (0, total.saturating_sub(1)),
         GifAnimRange::From(x) => {
             if *x >= total {
                 return Err(ProxyError::InvalidParams(
                     "gif_anim: start frame out of range".to_string(),
                 ));
             }
-            (*x..total).collect()
+            (*x, total - 1)
         }
         GifAnimRange::Range(x, y) => {
             if x > y {
@@ -44,7 +44,7 @@ pub fn run(
                 ));
             }
             let y_clamped = (*y).min(total - 1);
-            (*x..=y_clamped).collect()
+            (*x, y_clamped)
         }
         GifAnimRange::Last(n) => {
             if *n == 0 {
@@ -53,7 +53,7 @@ pub fn run(
                 ));
             }
             let n_clamped = (*n).min(total);
-            (total - n_clamped..total).collect()
+            (total - n_clamped, total - 1)
         }
     };
 
@@ -68,7 +68,7 @@ pub fn run(
         let left = frame.left();
         let top = frame.top();
 
-        if in_range.contains(&idx) {
+        if idx >= range_start && idx <= range_end {
             let mut img = DynamicImage::ImageRgba8(frame.into_buffer());
 
             // Geometric transforms
@@ -89,14 +89,24 @@ pub fn run(
                 img = ops::watermark::apply_watermark_sync(img, wm.clone())?;
             }
 
-            out_frames.push(Frame::from_parts(img.into_rgba8(), left, top, delay));
+            let (out_left, out_top) = if params.w.is_some() || params.h.is_some() || params.rotate.is_some() || params.flip.is_some() {
+                (0, 0)
+            } else {
+                (left, top)
+            };
+            out_frames.push(Frame::from_parts(img.into_rgba8(), out_left, out_top, delay));
         } else if all_frames {
             // Out-of-range passthrough: apply geometric transforms only to keep dimensions consistent
             let mut img = DynamicImage::ImageRgba8(frame.into_buffer());
             img = ops::resize::resize(img, params.w, params.h, fit)?;
             img = ops::rotate::rotate(img, params.rotate)?;
             img = ops::rotate::flip(img, params.flip.as_deref())?;
-            out_frames.push(Frame::from_parts(img.into_rgba8(), left, top, delay));
+            let (out_left, out_top) = if params.w.is_some() || params.h.is_some() || params.rotate.is_some() || params.flip.is_some() {
+                (0, 0)
+            } else {
+                (left, top)
+            };
+            out_frames.push(Frame::from_parts(img.into_rgba8(), out_left, out_top, delay));
         }
     }
 
