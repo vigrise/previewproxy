@@ -23,6 +23,12 @@ pub struct InflightGuard {
   completed: bool,
 }
 
+impl Default for InflightMap {
+  fn default() -> Self {
+    Self::new()
+  }
+}
+
 impl InflightMap {
   pub fn new() -> Self {
     Self {
@@ -57,9 +63,8 @@ impl InflightMap {
     entry.notify.notified().await;
     let guard = entry.result.lock().await;
     guard.as_ref().map(|r| {
-      r.as_ref()
-        .map(|e| e.clone())
-        .map_err(|s| ProxyError::InternalError(s.clone()))
+      r.clone()
+        .map_err(ProxyError::InternalError)
     })
   }
 }

@@ -15,9 +15,10 @@ A fast, self-hosted image proxy written in Rust. Fetch images from HTTP URLs, S3
 - **On-the-fly transforms** - resize, crop, rotate, flip, grayscale, brightness/contrast, blur, watermark, format conversion (JPEG, PNG, WebP, AVIF, JXL)
 - **Multiple sources** - remote HTTP URLs, S3-compatible buckets, and local filesystem
 - **Two request styles** - path-style (`/300x200,webp/https://example.com/img.jpg`) and query-style (`/proxy?url=...&w=300&h=200`)
-- **Multi-tier cache** - L1 in-memory (moka) + L2 disk with singleflight dedup
-- **Security** - domain allowlist, optional HMAC request signing, configurable CORS origins, SSRF protection (private IP blocking, per-hop allowlist re-validation on redirects)
+- **Animated GIF pipeline** - output all frames of an animated GIF, optionally applying transforms to a selected frame range
 - **Video thumbnail extraction** - extract a frame from MP4, MKV, AVI and pass it through the normal transform pipeline
+- **Multi-tier cache** - L1 in-memory (moka) + L2 disk with singleflight dedup
+- **Security** - domain allowlist, optional HMAC request signing, configurable CORS origins, SSRF protection (private IP blocking, per-hop allowlist re-validation on redirects).
 
 ## Request Styles
 
@@ -29,10 +30,15 @@ GET /{transforms}/{image-url}
 
 Transforms are comma-separated tokens before the image URL:
 
-```
-GET /300x200/https://example.com/photo.jpg          # resize to 300×200
-GET /300x200,webp/https://example.com/photo.jpg     # resize + convert to WebP
-GET /,grayscale/https://example.com/photo.jpg       # grayscale only
+```bash
+# Resize to 300x200
+GET /300x200/https://example.com/photo.jpg
+# Resize and convert to WebP
+GET /300x200,webp/https://example.com/photo.jpg
+# Grayscale only
+GET /,grayscale/https://example.com/photo.jpg
+# Grayscale and blur
+GET /,grayscale,blur:0.8/https://example.com/photo.jpg
 ```
 
 ### Query-style
@@ -60,6 +66,8 @@ Query params take precedence when both styles are combined.
 | `blur`      | float (sigma)                        | Gaussian blur                                    |
 | `wm`        | URL                                  | Watermark image URL                              |
 | `seek`      | `5.0`, `0.5r`, `auto` (default: `0`) | Video seek: absolute seconds, relative ratio, or auto (middle frame) |
+| `gif_anim`  | `all`, `N`, `N-M`, `-N`              | Animated GIF: output all frames, apply transforms starting at frame N, to frame range N-M, or to last N frames |
+| `gif_af`    | `true`, `1`                          | GIF all-frames: apply style transforms (color, blur, etc.) to every frame, not just the `gif_anim` range |
 | `sig`       | string                               | HMAC-SHA256 signature (if required)              |
 
 ## API Endpoints

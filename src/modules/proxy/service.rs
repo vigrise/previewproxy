@@ -196,8 +196,8 @@ impl ProxyService {
                   bytes: buf,
                   content_type: content_type_bg.clone(),
                 };
-                let final_key = CacheManager::final_key(&canonical_bg, &content_type_bg);
-                cache.set(&final_key, entry.clone()).await;
+                let key = CacheManager::preliminary_key(&canonical_bg);
+                cache.set(&key, entry.clone()).await;
                 guard.complete(Ok(entry));
                 return;
               }
@@ -306,9 +306,8 @@ impl ProxyService {
       }
     };
 
-    // 9. Write to cache with final_key = CacheManager::final_key(canonical, mime)
-    let final_key = CacheManager::final_key(&canonical, &entry.content_type);
-    self.cache.set(&final_key, entry.clone()).await;
+    // 9. Write to cache
+    self.cache.set(&prelim_key, entry.clone()).await;
 
     // 10. Call guard.complete(Ok(entry.clone()))
     guard.complete(Ok(entry.clone()));
@@ -660,8 +659,8 @@ mod streaming_tests {
       tokio::time::sleep(std::time::Duration::from_millis(200)).await;
     }
     let canonical = TransformParams::default().canonical_string(&url);
-    let final_key = CacheManager::final_key(&canonical, "image/png");
-    let (entry, _) = cache.get(&final_key).await;
+    let prelim_key = CacheManager::preliminary_key(&canonical);
+    let (entry, _) = cache.get(&prelim_key).await;
     assert!(
       entry.is_none(),
       "cache must not be written when stream is dropped before exhaustion"
@@ -704,8 +703,8 @@ mod streaming_tests {
       tokio::time::sleep(std::time::Duration::from_millis(200)).await;
     }
     let canonical = TransformParams::default().canonical_string(&url);
-    let final_key = CacheManager::final_key(&canonical, "image/png");
-    let (entry, _) = cache.get(&final_key).await;
+    let prelim_key = CacheManager::preliminary_key(&canonical);
+    let (entry, _) = cache.get(&prelim_key).await;
     assert!(
       entry.is_some(),
       "cache entry should exist after clean stream"
@@ -735,8 +734,8 @@ mod streaming_tests {
       tokio::time::sleep(std::time::Duration::from_millis(200)).await;
     }
     let canonical = TransformParams::default().canonical_string(&url);
-    let final_key = CacheManager::final_key(&canonical, "image/png");
-    let (entry, _) = cache.get(&final_key).await;
+    let prelim_key = CacheManager::preliminary_key(&canonical);
+    let (entry, _) = cache.get(&prelim_key).await;
     assert!(
       entry.is_none(),
       "cache must not be written when size limit exceeded"
