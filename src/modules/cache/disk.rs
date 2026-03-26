@@ -147,8 +147,8 @@ impl DiskCache {
     }
 
     // Enforce max_bytes: evict oldest entries first until under the limit
-    if let Some(max) = self.max_bytes {
-      if total > max {
+    if let Some(max) = self.max_bytes
+      && total > max {
         // Sort oldest first
         live.sort_by_key(|(created_at, _, _, _)| *created_at);
         for (_, bin, meta, size) in live {
@@ -160,7 +160,6 @@ impl DiskCache {
           total = total.saturating_sub(size);
         }
       }
-    }
 
     self.total_bytes.store(total, Ordering::Relaxed);
     self.total_bytes_as_of.store(now, Ordering::Relaxed);

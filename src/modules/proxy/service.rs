@@ -79,8 +79,8 @@ impl ProxyService {
     }
 
     // 2. Allowlist check for watermark URL host (HTTP/HTTPS only)
-    if let Some(wm_url) = &params.wm {
-      if wm_url.starts_with("http://") || wm_url.starts_with("https://") {
+    if let Some(wm_url) = &params.wm
+      && (wm_url.starts_with("http://") || wm_url.starts_with("https://")) {
         let wm_host = Url::parse(wm_url)
           .ok()
           .and_then(|u| u.host_str().map(|h| h.to_string()))
@@ -89,7 +89,6 @@ impl ProxyService {
           return Err(ProxyError::HostNotAllowed);
         }
       }
-    }
 
     // 3. Compute canonical once (Issue 3 fix)
     let canonical = params.canonical_string(&image_url);
@@ -114,11 +113,10 @@ impl ProxyService {
     }
 
     // 6. Singleflight: check if already inflight, or start one
-    if self.cache.inflight().is_inflight(&prelim_key) {
-      if let Some(result) = self.cache.inflight().wait(&prelim_key).await {
+    if self.cache.inflight().is_inflight(&prelim_key)
+      && let Some(result) = self.cache.inflight().wait(&prelim_key).await {
         return result.map(|entry| ProcessResult::Cached(entry, CacheHit::Miss));
       }
-    }
     let guard = self.cache.inflight().start(prelim_key.clone());
 
     // --- Streaming path: HTTP source, no transforms ---
@@ -298,12 +296,11 @@ impl ProxyService {
     // Note: if the fetcher returns no content-type (src_ct is None), this check is skipped.
     // Magic-byte-only sources (e.g. S3 objects without a content-type header) bypass
     // INPUT_DISALLOW_LIST. This is a known limitation.
-    if let Some(ref ct) = src_ct {
-      if let Err(e) = self.check_input_disallow(ct) {
+    if let Some(ref ct) = src_ct
+      && let Err(e) = self.check_input_disallow(ct) {
         guard.complete(Err(e.clone()));
         return Err(e);
       }
-    }
 
     // 9. Force pipeline for PDF to rasterize first page even without transform flags.
     let is_pdf =
@@ -368,12 +365,11 @@ impl ProxyService {
       "image/vnd.adobe.photoshop" => Some(DisallowedInput::Psd),
       _ => None,
     };
-    if let Some(t) = token {
-      if self.input_disallow.contains(&t) {
+    if let Some(t) = token
+      && self.input_disallow.contains(&t) {
         let name = format!("{t:?}").to_lowercase();
         return Err(ProxyError::TransformDisabled(name));
       }
-    }
     Ok(())
   }
 }

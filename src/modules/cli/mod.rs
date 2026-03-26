@@ -1,6 +1,6 @@
-pub mod cli;
+pub mod args;
 pub mod dto;
 pub mod subcommands;
 
-pub use cli::Cli;
+pub use args::Cli;
 pub use dto::Commands;

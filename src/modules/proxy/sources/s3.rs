@@ -48,26 +48,23 @@ impl Fetchable for S3Source {
       .send()
       .await
       .map_err(|e| {
-        if let Some(service_err) = e.as_service_error() {
-          if service_err.is_no_such_key() {
+        if let Some(service_err) = e.as_service_error()
+          && service_err.is_no_such_key() {
             return ProxyError::UpstreamNotFound;
           }
-        }
         // Also check raw HTTP status for 404
-        if let Some(raw) = e.raw_response() {
-          if raw.status().as_u16() == 404 {
+        if let Some(raw) = e.raw_response()
+          && raw.status().as_u16() == 404 {
             return ProxyError::UpstreamNotFound;
           }
-        }
         ProxyError::InternalError(e.to_string())
       })?;
 
     // Check content_length before downloading body
-    if let Some(content_length) = resp.content_length() {
-      if content_length as u64 > self.max_bytes {
+    if let Some(content_length) = resp.content_length()
+      && content_length as u64 > self.max_bytes {
         return Err(ProxyError::SourceTooLarge);
       }
-    }
 
     let content_type = resp.content_type().map(|s| s.to_string());
 
