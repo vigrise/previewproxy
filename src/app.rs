@@ -46,7 +46,7 @@ pub async fn router(cfg: Config, cache: Arc<CacheManager>) -> Router {
     None
   };
 
-  let fetcher: Arc<dyn Fetchable> = Arc::new(SourceRouter::new(http, s3, local));
+  let fetcher: Arc<dyn Fetchable> = Arc::new(SourceRouter::new(http, s3, local, None));
 
   let cors_layer = middlewares::cors_layer(&cfg.cors_allow_origin, cfg.cors_max_age_secs);
 
