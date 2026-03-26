@@ -2,7 +2,7 @@ use crate::common::{config::telemetry, config::Config, config::Environment, midd
 use crate::modules::cache::manager::CacheManager;
 use crate::modules::proxy::fetchable::Fetchable;
 use crate::modules::proxy::sources::http::HttpFetcher;
-use crate::modules::proxy::sources::{LocalSource, S3Source, SourceRouter};
+use crate::modules::proxy::sources::{AliasSource, LocalSource, S3Source, SourceRouter};
 use crate::modules::security::allowlist::Allowlist;
 use crate::modules::AppState;
 use axum::Router;
@@ -46,7 +46,16 @@ pub async fn router(cfg: Config, cache: Arc<CacheManager>) -> Router {
     None
   };
 
-  let fetcher: Arc<dyn Fetchable> = Arc::new(SourceRouter::new(http, s3, local, None));
+  let alias = cfg.url_aliases.as_ref().map(|aliases| {
+    let alias_http = Arc::new(HttpFetcher::new(
+      cfg.fetch_timeout_secs,
+      cfg.max_source_bytes,
+      Arc::new(Allowlist::new(vec![])),
+    ));
+    Arc::new(AliasSource::new(aliases.clone(), alias_http))
+  });
+
+  let fetcher: Arc<dyn Fetchable> = Arc::new(SourceRouter::new(http, s3, local, alias));
 
   let cors_layer = middlewares::cors_layer(&cfg.cors_allow_origin, cfg.cors_max_age_secs);
 
