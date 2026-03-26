@@ -1,9 +1,14 @@
-<h1 align="center">PreviewProxy</h1>
+<p align="center">
+  <img src="docs/img/logo.svg" alt="PreviewProxy" />
+</p>
 
 <p align="center">
+  <a href="https://github.com/ViGrise/previewproxy/releases/latest"><img src="https://img.shields.io/github/v/release/ViGrise/previewproxy?label=release&color=blue" alt="Latest Release"></a>
+  <a href="https://github.com/ViGrise/previewproxy/actions"><img src="https://img.shields.io/github/actions/workflow/status/ViGrise/previewproxy/ci.yml?branch=main&label=CI" alt="CI"></a>
   <a href="https://www.rust-lang.org/"><img src="https://img.shields.io/badge/rust-stable-orange.svg?logo=rust" alt="Rust"></a>
   <a href="https://github.com/tokio-rs/axum"><img src="https://img.shields.io/badge/axum-0.8-blue.svg" alt="Axum"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-blue.svg" alt="License: Apache 2.0"></a>
+  <a href="https://github.com/ViGrise/previewproxy/pkgs/container/previewproxy"><img src="https://img.shields.io/badge/ghcr.io-previewproxy-blue?logo=docker" alt="GitHub Container Registry"></a>
   <a href="https://github.com/ViGrise/previewproxy/stargazers"><img src="https://img.shields.io/github/stars/ViGrise/previewproxy?style=social" alt="GitHub stars"></a>
   <a href="https://github.com/ViGrise/previewproxy/issues"><img src="https://img.shields.io/github/issues/ViGrise/previewproxy" alt="GitHub issues"></a>
 </p>

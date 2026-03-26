@@ -1,0 +1,229 @@
+<svg width="360" height="175" viewBox="0 0 360 175" fill="none" xmlns="http://www.w3.org/2000/svg">
+
+  <defs>
+    <linearGradient id="ul" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#005ee2" />
+      <stop offset="100%" stop-color="#005ee2" stop-opacity="0" />
+    </linearGradient>
+    <clipPath id="cb" clipPathUnits="userSpaceOnUse">
+      <rect x="4" y="4" width="58" height="58" />
+    </clipPath>
+    <clipPath id="cf" clipPathUnits="userSpaceOnUse">
+      <rect x="22" y="22" width="58" height="58" />
+    </clipPath>
+  </defs>
+
+  <g transform="translate(138, 12)">
+
+    <!-- ── BACK FRAME ── -->
+    <rect x="4" y="4" width="58" height="58" stroke="#005ee2" stroke-width="1.8" fill="rgba(0,94,226,0.03)"
+      stroke-dasharray="232" stroke-dashoffset="232">
+      <animate attributeName="stroke-dashoffset" from="232" to="0" begin="0.1s" dur="0.9s" fill="freeze"
+        calcMode="spline" keySplines="0.4 0 0.2 1" />
+    </rect>
+
+    <!-- back corners (staggered fade) -->
+    <line x1="4" y1="4" x2="17" y2="4" stroke="#005ee2" stroke-width="3" stroke-linecap="square" opacity="0">
+      <animate attributeName="opacity" from="0" to="1" begin="0.14s" dur="0.25s" fill="freeze" />
+    </line>
+    <line x1="4" y1="4" x2="4" y2="17" stroke="#005ee2" stroke-width="3" stroke-linecap="square" opacity="0">
+      <animate attributeName="opacity" from="0" to="1" begin="0.17s" dur="0.25s" fill="freeze" />
+    </line>
+    <line x1="62" y1="4" x2="49" y2="4" stroke="#005ee2" stroke-width="3" stroke-linecap="square" opacity="0">
+      <animate attributeName="opacity" from="0" to="1" begin="0.20s" dur="0.25s" fill="freeze" />
+    </line>
+    <line x1="62" y1="4" x2="62" y2="17" stroke="#005ee2" stroke-width="3" stroke-linecap="square" opacity="0">
+      <animate attributeName="opacity" from="0" to="1" begin="0.23s" dur="0.25s" fill="freeze" />
+    </line>
+    <line x1="4" y1="62" x2="17" y2="62" stroke="#005ee2" stroke-width="3" stroke-linecap="square" opacity="0">
+      <animate attributeName="opacity" from="0" to="1" begin="0.26s" dur="0.25s" fill="freeze" />
+    </line>
+    <line x1="4" y1="62" x2="4" y2="49" stroke="#005ee2" stroke-width="3" stroke-linecap="square" opacity="0">
+      <animate attributeName="opacity" from="0" to="1" begin="0.29s" dur="0.25s" fill="freeze" />
+    </line>
+    <line x1="62" y1="62" x2="49" y2="62" stroke="rgba(0,94,226,0.28)" stroke-width="3" stroke-linecap="square"
+      opacity="0">
+      <animate attributeName="opacity" from="0" to="1" begin="0.32s" dur="0.25s" fill="freeze" />
+    </line>
+    <line x1="62" y1="62" x2="62" y2="49" stroke="rgba(0,94,226,0.28)" stroke-width="3" stroke-linecap="square"
+      opacity="0">
+      <animate attributeName="opacity" from="0" to="1" begin="0.35s" dur="0.25s" fill="freeze" />
+    </line>
+
+    <!-- back grid -->
+    <line x1="4" y1="24" x2="62" y2="24" stroke="rgba(0,94,226,0.09)" stroke-width="1" opacity="0">
+      <animate attributeName="opacity" from="0" to="1" begin="0.45s" dur="0.35s" fill="freeze" />
+    </line>
+    <line x1="4" y1="42" x2="62" y2="42" stroke="rgba(0,94,226,0.09)" stroke-width="1" opacity="0">
+      <animate attributeName="opacity" from="0" to="1" begin="0.50s" dur="0.35s" fill="freeze" />
+    </line>
+    <line x1="24" y1="4" x2="24" y2="62" stroke="rgba(0,94,226,0.09)" stroke-width="1" opacity="0">
+      <animate attributeName="opacity" from="0" to="1" begin="0.55s" dur="0.35s" fill="freeze" />
+    </line>
+    <line x1="42" y1="4" x2="42" y2="62" stroke="rgba(0,94,226,0.09)" stroke-width="1" opacity="0">
+      <animate attributeName="opacity" from="0" to="1" begin="0.60s" dur="0.35s" fill="freeze" />
+    </line>
+
+    <!-- data packet dots: back → front -->
+    <g opacity="0">
+      <animate attributeName="opacity" from="0" to="1" begin="0.9s" dur="0.4s" fill="freeze" />
+
+      <circle cx="12" cy="18" r="1.5" fill="#005ee2">
+        <animate attributeName="opacity" values="0;0.9;0" dur="1.0s" begin="1.0s" repeatCount="indefinite" />
+        <animate attributeName="r" values="1.5;2.5;1.5" dur="1.0s" begin="1.0s" repeatCount="indefinite" />
+        <animateTransform attributeName="transform" type="translate" values="0,0; 18,18" dur="1.0s" begin="1.0s"
+          repeatCount="indefinite" calcMode="spline" keySplines="0.4 0 0.6 1" />
+      </circle>
+
+      <circle cx="38" cy="12" r="1.5" fill="#005ee2">
+        <animate attributeName="opacity" values="0;0.9;0" dur="1.0s" begin="1.35s" repeatCount="indefinite" />
+        <animate attributeName="r" values="1.5;2.5;1.5" dur="1.0s" begin="1.35s" repeatCount="indefinite" />
+        <animateTransform attributeName="transform" type="translate" values="0,0; 18,18" dur="1.0s" begin="1.35s"
+          repeatCount="indefinite" calcMode="spline" keySplines="0.4 0 0.6 1" />
+      </circle>
+
+      <circle cx="20" cy="44" r="1.5" fill="#005ee2">
+        <animate attributeName="opacity" values="0;0.75;0" dur="1.0s" begin="1.65s" repeatCount="indefinite" />
+        <animate attributeName="r" values="1.5;2.2;1.5" dur="1.0s" begin="1.65s" repeatCount="indefinite" />
+        <animateTransform attributeName="transform" type="translate" values="0,0; 18,18" dur="1.0s" begin="1.65s"
+          repeatCount="indefinite" calcMode="spline" keySplines="0.4 0 0.6 1" />
+      </circle>
+
+      <circle cx="50" cy="30" r="1.5" fill="#005ee2">
+        <animate attributeName="opacity" values="0;0.85;0" dur="1.0s" begin="2.0s" repeatCount="indefinite" />
+        <animate attributeName="r" values="1.5;2.5;1.5" dur="1.0s" begin="2.0s" repeatCount="indefinite" />
+        <animateTransform attributeName="transform" type="translate" values="0,0; 18,18" dur="1.0s" begin="2.0s"
+          repeatCount="indefinite" calcMode="spline" keySplines="0.4 0 0.6 1" />
+      </circle>
+
+      <circle cx="30" cy="54" r="1.5" fill="rgba(0,94,226,0.7)">
+        <animate attributeName="opacity" values="0;0.65;0" dur="1.0s" begin="2.3s" repeatCount="indefinite" />
+        <animate attributeName="r" values="1.5;2.0;1.5" dur="1.0s" begin="2.3s" repeatCount="indefinite" />
+        <animateTransform attributeName="transform" type="translate" values="0,0; 18,18" dur="1.0s" begin="2.3s"
+          repeatCount="indefinite" calcMode="spline" keySplines="0.4 0 0.6 1" />
+      </circle>
+
+    </g>
+
+    <!-- ── OVERLAP ZONE ── -->
+    <rect x="22" y="22" width="40" height="40" fill="rgba(0,94,226,0.08)" opacity="0">
+      <animate attributeName="opacity" from="0" to="1" begin="0.8s" dur="0.4s" fill="freeze" />
+    </rect>
+    <rect x="22" y="22" width="40" height="40" stroke="rgba(0,94,226,0.28)" stroke-width="1" fill="none" opacity="0">
+      <animate attributeName="opacity" from="0" to="1" begin="0.8s" dur="0.4s" fill="freeze" />
+    </rect>
+    <!-- X diagonals -->
+    <line x1="22" y1="22" x2="62" y2="62" stroke="rgba(0,94,226,0.2)" stroke-width="1" opacity="0">
+      <animate attributeName="opacity" from="0" to="1" begin="0.85s" dur="0.3s" fill="freeze" />
+    </line>
+    <line x1="62" y1="22" x2="22" y2="62" stroke="rgba(0,94,226,0.2)" stroke-width="1" opacity="0">
+      <animate attributeName="opacity" from="0" to="1" begin="0.88s" dur="0.3s" fill="freeze" />
+    </line>
+    <!-- sun -->
+    <circle cx="34" cy="31" r="3.5" stroke="#005ee2" stroke-width="1.4" fill="none" opacity="0">
+      <animate attributeName="opacity" from="0" to="0.65" begin="0.92s" dur="0.3s" fill="freeze" />
+    </circle>
+    <!-- mountain -->
+    <polyline points="22,56 33,42 42,52 48,45 62,56" stroke="#005ee2" stroke-width="1.4" stroke-linejoin="round"
+      fill="none" opacity="0">
+      <animate attributeName="opacity" from="0" to="0.65" begin="0.95s" dur="0.3s" fill="freeze" />
+    </polyline>
+    <polygon points="22,56 33,42 42,52 48,45 62,56 62,62 22,62" fill="rgba(0,94,226,0.11)" opacity="0">
+      <animate attributeName="opacity" from="0" to="0.9" begin="0.98s" dur="0.3s" fill="freeze" />
+    </polygon>
+
+    <!-- ── FRONT FRAME ── -->
+    <rect x="22" y="22" width="58" height="58" stroke="#005ee2" stroke-width="1.8" fill="rgba(0,94,226,0.04)"
+      stroke-dasharray="232" stroke-dashoffset="232">
+      <animate attributeName="stroke-dashoffset" from="232" to="0" begin="0.45s" dur="0.9s" fill="freeze"
+        calcMode="spline" keySplines="0.4 0 0.2 1" />
+    </rect>
+
+    <!-- front corners -->
+    <line x1="22" y1="22" x2="35" y2="22" stroke="rgba(0,94,226,0.38)" stroke-width="3" stroke-linecap="square"
+      opacity="0">
+      <animate attributeName="opacity" from="0" to="1" begin="0.58s" dur="0.25s" fill="freeze" />
+    </line>
+    <line x1="22" y1="22" x2="22" y2="35" stroke="rgba(0,94,226,0.38)" stroke-width="3" stroke-linecap="square"
+      opacity="0">
+      <animate attributeName="opacity" from="0" to="1" begin="0.61s" dur="0.25s" fill="freeze" />
+    </line>
+    <line x1="80" y1="22" x2="67" y2="22" stroke="#005ee2" stroke-width="3" stroke-linecap="square" opacity="0">
+      <animate attributeName="opacity" from="0" to="1" begin="0.64s" dur="0.25s" fill="freeze" />
+    </line>
+    <line x1="80" y1="22" x2="80" y2="35" stroke="#005ee2" stroke-width="3" stroke-linecap="square" opacity="0">
+      <animate attributeName="opacity" from="0" to="1" begin="0.67s" dur="0.25s" fill="freeze" />
+    </line>
+    <line x1="22" y1="80" x2="35" y2="80" stroke="#005ee2" stroke-width="3" stroke-linecap="square" opacity="0">
+      <animate attributeName="opacity" from="0" to="1" begin="0.70s" dur="0.25s" fill="freeze" />
+    </line>
+    <line x1="22" y1="80" x2="22" y2="67" stroke="#005ee2" stroke-width="3" stroke-linecap="square" opacity="0">
+      <animate attributeName="opacity" from="0" to="1" begin="0.73s" dur="0.25s" fill="freeze" />
+    </line>
+    <line x1="80" y1="80" x2="67" y2="80" stroke="#005ee2" stroke-width="3" stroke-linecap="square" opacity="0">
+      <animate attributeName="opacity" from="0" to="1" begin="0.76s" dur="0.25s" fill="freeze" />
+    </line>
+    <line x1="80" y1="80" x2="80" y2="67" stroke="#005ee2" stroke-width="3" stroke-linecap="square" opacity="0">
+      <animate attributeName="opacity" from="0" to="1" begin="0.79s" dur="0.25s" fill="freeze" />
+    </line>
+
+    <!-- front grid -->
+    <line x1="22" y1="42" x2="80" y2="42" stroke="rgba(0,94,226,0.07)" stroke-width="1" opacity="0">
+      <animate attributeName="opacity" from="0" to="1" begin="0.82s" dur="0.35s" fill="freeze" />
+    </line>
+    <line x1="22" y1="60" x2="80" y2="60" stroke="rgba(0,94,226,0.07)" stroke-width="1" opacity="0">
+      <animate attributeName="opacity" from="0" to="1" begin="0.87s" dur="0.35s" fill="freeze" />
+    </line>
+    <line x1="42" y1="22" x2="42" y2="80" stroke="rgba(0,94,226,0.07)" stroke-width="1" opacity="0">
+      <animate attributeName="opacity" from="0" to="1" begin="0.92s" dur="0.35s" fill="freeze" />
+    </line>
+    <line x1="60" y1="22" x2="60" y2="80" stroke="rgba(0,94,226,0.07)" stroke-width="1" opacity="0">
+      <animate attributeName="opacity" from="0" to="1" begin="0.97s" dur="0.35s" fill="freeze" />
+    </line>
+
+
+    <!-- Active dot -->
+    <circle cx="76" cy="76" r="3" fill="#005ee2" opacity="0">
+      <animate attributeName="opacity" from="0" to="1" begin="1.2s" dur="0.3s" fill="freeze" />
+      <animate attributeName="opacity" values="1;0.3;1" dur="2s" begin="1.6s" repeatCount="indefinite" />
+    </circle>
+    <circle cx="76" cy="76" r="5" stroke="rgba(0,94,226,0.4)" stroke-width="1" fill="none" opacity="0">
+      <animate attributeName="opacity" from="0" to="0.5" begin="1.3s" dur="0.3s" fill="freeze" />
+      <animate attributeName="r" values="5;11" dur="2s" begin="1.8s" repeatCount="indefinite" />
+      <animate attributeName="opacity" values="0.5;0" dur="2s" begin="1.8s" repeatCount="indefinite" />
+    </circle>
+
+    <!-- Dimension ticks -->
+    <g opacity="0">
+      <animate attributeName="opacity" from="0" to="1" begin="1.2s" dur="0.3s" fill="freeze" />
+      <line x1="4" y1="86" x2="4" y2="83" stroke="rgba(0,94,226,0.32)" stroke-width="1" />
+      <line x1="22" y1="86" x2="22" y2="83" stroke="rgba(0,94,226,0.32)" stroke-width="1" />
+      <line x1="4" y1="84.5" x2="22" y2="84.5" stroke="rgba(0,94,226,0.22)" stroke-width="1" />
+      <line x1="84" y1="4" x2="81" y2="4" stroke="rgba(0,94,226,0.32)" stroke-width="1" />
+      <line x1="84" y1="22" x2="81" y2="22" stroke="rgba(0,94,226,0.32)" stroke-width="1" />
+      <line x1="82.5" y1="4" x2="82.5" y2="22" stroke="rgba(0,94,226,0.22)" stroke-width="1" />
+    </g>
+
+  </g>
+
+  <!-- ── WORDMARK ── -->
+  <text x="180" y="138" font-family="'Arial Narrow', Impact, Haettenschweiler, Arial, sans-serif" font-size="40"
+    font-weight="900" letter-spacing="4" text-anchor="middle" opacity="0">
+    <animate attributeName="opacity" from="0" to="1" begin="1.0s" dur="0.5s" fill="freeze" />
+    <tspan fill="#005ee2">PREVIEW</tspan><tspan fill="#888ea8">PROXY</tspan>
+  </text>
+
+  <!-- Underline draws in -->
+  <line x1="180" y1="146" x2="180" y2="146" stroke="url(#ul)" stroke-width="1.5">
+    <animate attributeName="x1" from="180" to="90" begin="1.55s" dur="0.5s" fill="freeze" />
+    <animate attributeName="x2" from="180" to="270" begin="1.55s" dur="0.5s" fill="freeze" />
+  </line>
+
+  <!-- Subtitle -->
+  <text x="180" y="162" font-family="'Courier New', monospace" font-size="9" font-weight="400" letter-spacing="3"
+    fill="#888ea8" text-anchor="middle" opacity="0">
+    <animate attributeName="opacity" from="0" to="1" begin="1.8s" dur="0.5s" fill="freeze" />
+    by ViGrise Technology
+  </text>
+
+</svg>

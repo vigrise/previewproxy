@@ -17,3 +17,7 @@ target/
 
 # Git worktrees
 .worktrees/
+
+# IDE
+.idea/
+.vscode/
