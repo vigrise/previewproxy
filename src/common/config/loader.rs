@@ -2,7 +2,7 @@ use crate::common::config::types::{
   DisallowedInput, DisallowedOutput, DisallowedTransform, Environment,
 };
 use std::{
-  collections::HashSet,
+  collections::{HashMap, HashSet},
   net::{Ipv4Addr, SocketAddr},
   sync::Arc,
 };
@@ -50,6 +50,8 @@ pub struct Configuration {
   pub input_disallow: HashSet<DisallowedInput>,
   pub output_disallow: HashSet<DisallowedOutput>,
   pub transform_disallow: HashSet<DisallowedTransform>,
+  // URL aliases
+  pub url_aliases: Option<HashMap<String, String>>,
 }
 
 fn env_var(name: &str) -> String {
@@ -144,6 +146,53 @@ fn parse_transform_disallow(s: &str) -> HashSet<DisallowedTransform> {
     .collect()
 }
 
+fn parse_url_aliases(s: &str) -> Option<HashMap<String, String>> {
+  let map: HashMap<String, String> = s
+    .split(',')
+    .map(|token| token.trim())
+    .filter(|token| !token.is_empty())
+    .filter_map(|token| {
+      let (name, base) = match token.split_once('=') {
+        Some(pair) => pair,
+        None => {
+          tracing::warn!("URL_ALIASES: skipping invalid entry (no '='): {:?}", token);
+          return None;
+        }
+      };
+      let name = name.trim();
+      let base = base.trim();
+      if name.is_empty() {
+        tracing::warn!("URL_ALIASES: skipping entry with empty name");
+        return None;
+      }
+      if base.is_empty() {
+        tracing::warn!("URL_ALIASES: skipping entry {:?} with empty base URL", name);
+        return None;
+      }
+      if !base.starts_with("http://") && !base.starts_with("https://") {
+        tracing::warn!(
+          "URL_ALIASES: skipping entry {:?} - base URL must be http:// or https://, got {:?}",
+          name, base
+        );
+        return None;
+      }
+      if name == "s3" {
+        tracing::warn!(
+          "URL_ALIASES: scheme 's3' is shadowed by the built-in S3 source and will never be reachable"
+        );
+      }
+      if name == "local" {
+        tracing::warn!(
+          "URL_ALIASES: scheme 'local' is shadowed by the built-in local source and will never be reachable"
+        );
+      }
+      Some((name.to_string(), base.to_string()))
+    })
+    .collect();
+
+  if map.is_empty() { None } else { Some(map) }
+}
+
 impl Configuration {
   pub fn new() -> Config {
     let env = env_var("APP_ENV")
@@ -220,6 +269,9 @@ impl Configuration {
       ),
       transform_disallow: parse_transform_disallow(
         &std::env::var("TRANSFORM_DISALLOW_LIST").unwrap_or_default(),
+      ),
+      url_aliases: parse_url_aliases(
+        &std::env::var("URL_ALIASES").unwrap_or_default(),
       ),
     });
     if cfg.hmac_key.is_none() {
@@ -320,6 +372,11 @@ impl std::fmt::Debug for Configuration {
         v.sort();
         v
       })
+      .field("url_aliases", &self.url_aliases.as_ref().map(|m| {
+        let mut keys: Vec<_> = m.keys().cloned().collect();
+        keys.sort();
+        keys
+      }))
       .finish()
   }
 }
@@ -430,6 +487,77 @@ mod tests {
       .transform_disallow
       .contains(&super::DisallowedTransform::Blur));
     assert_eq!(cfg.transform_disallow.len(), 1);
+  }
+
+  #[test]
+  fn test_url_aliases_unset_is_none() {
+    let _guard = ENV_LOCK.lock().unwrap();
+    std::env::set_var("PORT", "8080");
+    std::env::set_var("APP_ENV", "development");
+    std::env::remove_var("URL_ALIASES");
+    let cfg = super::Configuration::new();
+    assert!(cfg.url_aliases.is_none());
+  }
+
+  #[test]
+  fn test_url_aliases_empty_is_none() {
+    let _guard = ENV_LOCK.lock().unwrap();
+    std::env::set_var("PORT", "8080");
+    std::env::set_var("APP_ENV", "development");
+    std::env::set_var("URL_ALIASES", "");
+    let cfg = super::Configuration::new();
+    std::env::remove_var("URL_ALIASES");
+    assert!(cfg.url_aliases.is_none());
+  }
+
+  #[test]
+  fn test_url_aliases_valid_parses() {
+    let _guard = ENV_LOCK.lock().unwrap();
+    std::env::set_var("PORT", "8080");
+    std::env::set_var("APP_ENV", "development");
+    std::env::set_var("URL_ALIASES", "mycdn=https://img.example.com,cdn2=https://other.com");
+    let cfg = super::Configuration::new();
+    std::env::remove_var("URL_ALIASES");
+    let map = cfg.url_aliases.clone().unwrap();
+    assert_eq!(map.get("mycdn").map(|s| s.as_str()), Some("https://img.example.com"));
+    assert_eq!(map.get("cdn2").map(|s| s.as_str()), Some("https://other.com"));
+  }
+
+  #[test]
+  fn test_url_aliases_skips_empty_name() {
+    let _guard = ENV_LOCK.lock().unwrap();
+    std::env::set_var("PORT", "8080");
+    std::env::set_var("APP_ENV", "development");
+    std::env::set_var("URL_ALIASES", "=https://img.example.com,valid=https://ok.com");
+    let cfg = super::Configuration::new();
+    std::env::remove_var("URL_ALIASES");
+    let map = cfg.url_aliases.clone().unwrap();
+    assert_eq!(map.len(), 1);
+    assert!(map.contains_key("valid"));
+  }
+
+  #[test]
+  fn test_url_aliases_skips_non_http_base() {
+    let _guard = ENV_LOCK.lock().unwrap();
+    std::env::set_var("PORT", "8080");
+    std::env::set_var("APP_ENV", "development");
+    std::env::set_var("URL_ALIASES", "bad=file:///etc/passwd,ok=https://img.example.com");
+    let cfg = super::Configuration::new();
+    std::env::remove_var("URL_ALIASES");
+    let map = cfg.url_aliases.clone().unwrap();
+    assert_eq!(map.len(), 1);
+    assert!(map.contains_key("ok"));
+  }
+
+  #[test]
+  fn test_url_aliases_all_invalid_is_none() {
+    let _guard = ENV_LOCK.lock().unwrap();
+    std::env::set_var("PORT", "8080");
+    std::env::set_var("APP_ENV", "development");
+    std::env::set_var("URL_ALIASES", "bad=file:///etc/passwd");
+    let cfg = super::Configuration::new();
+    std::env::remove_var("URL_ALIASES");
+    assert!(cfg.url_aliases.is_none());
   }
 
   #[test]
