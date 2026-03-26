@@ -47,11 +47,14 @@ pub async fn router(cfg: Config, cache: Arc<CacheManager>) -> Router {
   };
 
   let alias = cfg.url_aliases.as_ref().map(|aliases| {
-    let alias_http = Arc::new(HttpFetcher::new(
-      cfg.fetch_timeout_secs,
-      cfg.max_source_bytes,
-      Arc::new(Allowlist::new(vec![])),
-    ));
+    let alias_http = Arc::new(
+      HttpFetcher::new(
+        cfg.fetch_timeout_secs,
+        cfg.max_source_bytes,
+        Arc::new(Allowlist::new(vec![])),
+      )
+      .with_private_ip_check(check_private),
+    );
     Arc::new(AliasSource::new(aliases.clone(), alias_http))
   });
 
