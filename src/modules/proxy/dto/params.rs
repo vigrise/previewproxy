@@ -68,11 +68,36 @@ impl TransformParams {
       .rfind("/local:%2F")
       .or_else(|| path.rfind("/local:%2f"));
 
+    // Find last alias-style delimiter: /WORD:/ where WORD doesn't produce ://
+    // Scan for ":/" occurrences and find the preceding "/" to get the split pos
+    let alias_pos = {
+      let bytes = path.as_bytes();
+      let mut last: Option<usize> = None;
+      let mut i = 0usize;
+      while i + 1 < bytes.len() {
+        if bytes[i] == b':' && bytes[i + 1] == b'/' && bytes.get(i + 2) != Some(&b'/') {
+          // Walk back to find the preceding '/'
+          if let Some(slash) = path[..i].rfind('/') {
+            last = Some(slash);
+          }
+        }
+        i += 1;
+      }
+      last
+    };
+
     // Pick the rightmost match across all delimiters
-    let split_pos = [https_pos, http_pos, s3_pos, local_pos, local_pct_pos]
-      .into_iter()
-      .flatten()
-      .max();
+    let split_pos = [
+      https_pos,
+      http_pos,
+      s3_pos,
+      local_pos,
+      local_pct_pos,
+      alias_pos,
+    ]
+    .into_iter()
+    .flatten()
+    .max();
 
     let (opts_str, url) = if let Some(pos) = split_pos {
       (&path[..pos], &path[pos + 1..])
@@ -82,6 +107,7 @@ impl TransformParams {
       || path.starts_with("local:/")
       || path.starts_with("local:%2F")
       || path.starts_with("local:%2f")
+      || (path.contains(":/") && !path.contains("://"))
     {
       ("", path)
     } else {
@@ -688,6 +714,21 @@ mod tests {
     assert_eq!(params.w, Some(300));
     assert_eq!(params.h, Some(200));
     assert_eq!(url, "local:/srv/img.png");
+  }
+
+  #[test]
+  fn test_alias_no_options() {
+    let (params, url) = TransformParams::from_path("mycdn:/path/img.jpg").unwrap();
+    assert_eq!(params.w, None);
+    assert_eq!(url, "mycdn:/path/img.jpg");
+  }
+
+  #[test]
+  fn test_alias_with_options() {
+    let (params, url) = TransformParams::from_path("300x200/mycdn:/path/img.jpg").unwrap();
+    assert_eq!(params.w, Some(300));
+    assert_eq!(params.h, Some(200));
+    assert_eq!(url, "mycdn:/path/img.jpg");
   }
 
   #[test]
