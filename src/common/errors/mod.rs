@@ -1,6 +1,6 @@
 use axum::{
-  response::{IntoResponse, Response},
   Json,
+  response::{IntoResponse, Response},
 };
 use hyper::StatusCode;
 use serde::{Deserialize, Serialize};
@@ -43,7 +43,7 @@ pub enum ProxyError {
 
 impl From<anyhow::Error> for ProxyError {
   fn from(e: anyhow::Error) -> Self {
-    ProxyError::InternalError(e.to_string())
+    ProxyError::InternalError(format!("{:#}", e))
   }
 }
 
@@ -57,7 +57,10 @@ pub struct ErrorBody {
 impl IntoResponse for ProxyError {
   fn into_response(self) -> Response {
     let msg = self.to_string();
-    error!("{}", msg);
+    match &self {
+      ProxyError::InternalError(detail) => error!("internal_error: {}", detail),
+      _ => error!("{}", msg),
+    };
     let status = match &self {
       ProxyError::UpstreamNotFound => StatusCode::NOT_FOUND,
       ProxyError::UpstreamTimeout

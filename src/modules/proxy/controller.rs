@@ -1,21 +1,21 @@
 use crate::common::config::Config;
 use crate::common::errors::ProxyError;
+use crate::modules::AppState;
 use crate::modules::cache::manager::CacheHit;
 use crate::modules::cache::memory::CacheEntry;
 use crate::modules::proxy::{
   dto::{
-    params::{from_query, TransformParams},
     ProcessResult,
+    params::{TransformParams, from_query},
   },
   service::ProxyService,
 };
-use crate::modules::AppState;
 use axum::{
+  Router,
   extract::{Path, Query, State},
-  http::{header, HeaderMap, StatusCode},
+  http::{HeaderMap, StatusCode, header},
   response::{IntoResponse, Response},
   routing::get,
-  Router,
 };
 use futures::StreamExt;
 use std::collections::HashMap;
@@ -162,10 +162,10 @@ fn build_cached_response(entry: CacheEntry, hit: CacheHit, cfg: &Config) -> Resp
 #[cfg(test)]
 mod concurrency_tests {
   use crate::common::config::Configuration;
+  use crate::modules::AppState;
   use crate::modules::cache::manager::CacheManager;
   use crate::modules::proxy::sources::http::HttpFetcher;
   use crate::modules::security::allowlist::Allowlist;
-  use crate::modules::AppState;
   use axum::http::StatusCode;
   use std::net::{Ipv4Addr, SocketAddr};
   use std::sync::Arc;
@@ -260,7 +260,7 @@ mod concurrency_tests {
   #[tokio::test]
   async fn test_permit_held_during_stream_released_after_exhaustion() {
     use http_body_util::BodyExt;
-    use wiremock::{matchers::method, Mock, MockServer, ResponseTemplate};
+    use wiremock::{Mock, MockServer, ResponseTemplate, matchers::method};
 
     let server = MockServer::start().await;
     Mock::given(method("GET"))
@@ -299,7 +299,7 @@ mod concurrency_tests {
 
   #[tokio::test]
   async fn test_streaming_x_cache_miss_header() {
-    use wiremock::{matchers::method, Mock, MockServer, ResponseTemplate};
+    use wiremock::{Mock, MockServer, ResponseTemplate, matchers::method};
     let server = MockServer::start().await;
     Mock::given(method("GET"))
       .respond_with(

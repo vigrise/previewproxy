@@ -1,6 +1,6 @@
 #[cfg(test)]
 pub fn tiny_png_bytes() -> Vec<u8> {
-  use base64::{engine::general_purpose::STANDARD, Engine};
+  use base64::{Engine, engine::general_purpose::STANDARD};
   STANDARD.decode(
         "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC"
     ).unwrap()
@@ -8,7 +8,7 @@ pub fn tiny_png_bytes() -> Vec<u8> {
 
 #[cfg(test)]
 pub fn tiny_jpeg_bytes() -> Vec<u8> {
-  use base64::{engine::general_purpose::STANDARD, Engine};
+  use base64::{Engine, engine::general_purpose::STANDARD};
   STANDARD.decode(
         "/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/2wBDAQkJCQwLDBgNDRgyIRwhMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjL/wAARCAABAAEDASIAAhEBAxEB/8QAFgABAQEAAAAAAAAAAAAAAAAABgUE/8QAIhAAAQMEAgMAAAAAAAAAAAAAAQIDBAUREiExQf/EABQBAQAAAAAAAAAAAAAAAAAAAAD/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCn2pRqb2/cFPCdSfXFGpIaMHOVHsfmBmMAAA//2Q=="
     ).unwrap()
@@ -36,8 +36,8 @@ pub fn tiny_gif_anim_bytes() -> Vec<u8> {
 
 #[test]
 fn test_tiny_gif_anim_has_three_frames() {
-  use image::codecs::gif::GifDecoder;
   use image::AnimationDecoder;
+  use image::codecs::gif::GifDecoder;
   use std::io::Cursor;
 
   let bytes = tiny_gif_anim_bytes();

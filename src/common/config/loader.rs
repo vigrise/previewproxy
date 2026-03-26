@@ -190,11 +190,7 @@ fn parse_url_aliases(s: &str) -> Option<HashMap<String, String>> {
     })
     .collect();
 
-  if map.is_empty() {
-    None
-  } else {
-    Some(map)
-  }
+  if map.is_empty() { None } else { Some(map) }
 }
 
 impl Configuration {
@@ -395,9 +391,11 @@ mod tests {
   #[test]
   fn test_config_new() {
     let _guard = ENV_LOCK.lock().unwrap();
-    std::env::set_var("PORT", "8080");
-    std::env::set_var("APP_ENV", "development");
-    std::env::remove_var("MAX_CONCURRENT_REQUESTS");
+    unsafe {
+      std::env::set_var("PORT", "8080");
+      std::env::set_var("APP_ENV", "development");
+      std::env::remove_var("MAX_CONCURRENT_REQUESTS");
+    }
     let cfg = super::Configuration::new();
     assert_eq!(cfg.app_port, 8080);
     assert_eq!(cfg.fetch_timeout_secs, 10);
@@ -418,9 +416,11 @@ mod tests {
   #[test]
   fn test_max_concurrent_requests_default() {
     let _guard = ENV_LOCK.lock().unwrap();
-    std::env::set_var("PORT", "8080");
-    std::env::set_var("APP_ENV", "development");
-    std::env::remove_var("MAX_CONCURRENT_REQUESTS");
+    unsafe {
+      std::env::set_var("PORT", "8080");
+      std::env::set_var("APP_ENV", "development");
+      std::env::remove_var("MAX_CONCURRENT_REQUESTS");
+    }
     let cfg = super::Configuration::new();
     assert_eq!(cfg.max_concurrent_requests, 256);
   }
@@ -428,35 +428,41 @@ mod tests {
   #[test]
   fn test_max_concurrent_requests_from_env() {
     let _guard = ENV_LOCK.lock().unwrap();
-    std::env::set_var("PORT", "8080");
-    std::env::set_var("APP_ENV", "development");
-    std::env::set_var("MAX_CONCURRENT_REQUESTS", "64");
+    unsafe {
+      std::env::set_var("PORT", "8080");
+      std::env::set_var("APP_ENV", "development");
+      std::env::set_var("MAX_CONCURRENT_REQUESTS", "64");
+    }
     let cfg = super::Configuration::new();
-    std::env::remove_var("MAX_CONCURRENT_REQUESTS");
+    unsafe { std::env::remove_var("MAX_CONCURRENT_REQUESTS") };
     assert_eq!(cfg.max_concurrent_requests, 64);
   }
 
   #[test]
   fn test_max_concurrent_requests_zero_panics() {
     let _guard = ENV_LOCK.lock().unwrap();
-    std::env::set_var("PORT", "8080");
-    std::env::set_var("APP_ENV", "development");
-    std::env::set_var("MAX_CONCURRENT_REQUESTS", "0");
+    unsafe {
+      std::env::set_var("PORT", "8080");
+      std::env::set_var("APP_ENV", "development");
+      std::env::set_var("MAX_CONCURRENT_REQUESTS", "0");
+    }
     let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
       super::Configuration::new();
     }));
-    std::env::remove_var("MAX_CONCURRENT_REQUESTS");
+    unsafe { std::env::remove_var("MAX_CONCURRENT_REQUESTS") };
     assert!(result.is_err(), "Expected Configuration::new() to panic");
   }
 
   #[test]
   fn test_disallow_defaults_when_unset() {
     let _guard = ENV_LOCK.lock().unwrap();
-    std::env::set_var("PORT", "8080");
-    std::env::set_var("APP_ENV", "development");
-    std::env::remove_var("INPUT_DISALLOW_LIST");
-    std::env::remove_var("OUTPUT_DISALLOW_LIST");
-    std::env::remove_var("TRANSFORM_DISALLOW_LIST");
+    unsafe {
+      std::env::set_var("PORT", "8080");
+      std::env::set_var("APP_ENV", "development");
+      std::env::remove_var("INPUT_DISALLOW_LIST");
+      std::env::remove_var("OUTPUT_DISALLOW_LIST");
+      std::env::remove_var("TRANSFORM_DISALLOW_LIST");
+    }
     let cfg = super::Configuration::new();
     assert!(cfg.input_disallow.is_empty());
     assert!(cfg.output_disallow.is_empty());
@@ -466,15 +472,19 @@ mod tests {
   #[test]
   fn test_disallow_empty_string_means_all_allowed() {
     let _guard = ENV_LOCK.lock().unwrap();
-    std::env::set_var("PORT", "8080");
-    std::env::set_var("APP_ENV", "development");
-    std::env::set_var("INPUT_DISALLOW_LIST", "");
-    std::env::set_var("OUTPUT_DISALLOW_LIST", "");
-    std::env::set_var("TRANSFORM_DISALLOW_LIST", "");
+    unsafe {
+      std::env::set_var("PORT", "8080");
+      std::env::set_var("APP_ENV", "development");
+      std::env::set_var("INPUT_DISALLOW_LIST", "");
+      std::env::set_var("OUTPUT_DISALLOW_LIST", "");
+      std::env::set_var("TRANSFORM_DISALLOW_LIST", "");
+    }
     let cfg = super::Configuration::new();
-    std::env::remove_var("INPUT_DISALLOW_LIST");
-    std::env::remove_var("OUTPUT_DISALLOW_LIST");
-    std::env::remove_var("TRANSFORM_DISALLOW_LIST");
+    unsafe {
+      std::env::remove_var("INPUT_DISALLOW_LIST");
+      std::env::remove_var("OUTPUT_DISALLOW_LIST");
+      std::env::remove_var("TRANSFORM_DISALLOW_LIST");
+    }
     assert!(cfg.input_disallow.is_empty());
     assert!(cfg.output_disallow.is_empty());
     assert!(cfg.transform_disallow.is_empty());
@@ -483,23 +493,29 @@ mod tests {
   #[test]
   fn test_disallow_unknown_token_does_not_panic() {
     let _guard = ENV_LOCK.lock().unwrap();
-    std::env::set_var("PORT", "8080");
-    std::env::set_var("APP_ENV", "development");
-    std::env::set_var("TRANSFORM_DISALLOW_LIST", "blur,not_a_real_op");
+    unsafe {
+      std::env::set_var("PORT", "8080");
+      std::env::set_var("APP_ENV", "development");
+      std::env::set_var("TRANSFORM_DISALLOW_LIST", "blur,not_a_real_op");
+    }
     let cfg = super::Configuration::new();
-    std::env::remove_var("TRANSFORM_DISALLOW_LIST");
-    assert!(cfg
-      .transform_disallow
-      .contains(&super::DisallowedTransform::Blur));
+    unsafe { std::env::remove_var("TRANSFORM_DISALLOW_LIST") };
+    assert!(
+      cfg
+        .transform_disallow
+        .contains(&super::DisallowedTransform::Blur)
+    );
     assert_eq!(cfg.transform_disallow.len(), 1);
   }
 
   #[test]
   fn test_url_aliases_unset_is_none() {
     let _guard = ENV_LOCK.lock().unwrap();
-    std::env::set_var("PORT", "8080");
-    std::env::set_var("APP_ENV", "development");
-    std::env::remove_var("URL_ALIASES");
+    unsafe {
+      std::env::set_var("PORT", "8080");
+      std::env::set_var("APP_ENV", "development");
+      std::env::remove_var("URL_ALIASES");
+    }
     let cfg = super::Configuration::new();
     assert!(cfg.url_aliases.is_none());
   }
@@ -507,25 +523,29 @@ mod tests {
   #[test]
   fn test_url_aliases_empty_is_none() {
     let _guard = ENV_LOCK.lock().unwrap();
-    std::env::set_var("PORT", "8080");
-    std::env::set_var("APP_ENV", "development");
-    std::env::set_var("URL_ALIASES", "");
+    unsafe {
+      std::env::set_var("PORT", "8080");
+      std::env::set_var("APP_ENV", "development");
+      std::env::set_var("URL_ALIASES", "");
+    }
     let cfg = super::Configuration::new();
-    std::env::remove_var("URL_ALIASES");
+    unsafe { std::env::remove_var("URL_ALIASES") };
     assert!(cfg.url_aliases.is_none());
   }
 
   #[test]
   fn test_url_aliases_valid_parses() {
     let _guard = ENV_LOCK.lock().unwrap();
-    std::env::set_var("PORT", "8080");
-    std::env::set_var("APP_ENV", "development");
-    std::env::set_var(
-      "URL_ALIASES",
-      "mycdn=https://img.example.com,cdn2=https://other.com",
-    );
+    unsafe {
+      std::env::set_var("PORT", "8080");
+      std::env::set_var("APP_ENV", "development");
+      std::env::set_var(
+        "URL_ALIASES",
+        "mycdn=https://img.example.com,cdn2=https://other.com",
+      );
+    }
     let cfg = super::Configuration::new();
-    std::env::remove_var("URL_ALIASES");
+    unsafe { std::env::remove_var("URL_ALIASES") };
     let map = cfg.url_aliases.clone().unwrap();
     assert_eq!(
       map.get("mycdn").map(|s| s.as_str()),
@@ -540,14 +560,16 @@ mod tests {
   #[test]
   fn test_url_aliases_skips_empty_name() {
     let _guard = ENV_LOCK.lock().unwrap();
-    std::env::set_var("PORT", "8080");
-    std::env::set_var("APP_ENV", "development");
-    std::env::set_var(
-      "URL_ALIASES",
-      "=https://img.example.com,valid=https://ok.com",
-    );
+    unsafe {
+      std::env::set_var("PORT", "8080");
+      std::env::set_var("APP_ENV", "development");
+      std::env::set_var(
+        "URL_ALIASES",
+        "=https://img.example.com,valid=https://ok.com",
+      );
+    }
     let cfg = super::Configuration::new();
-    std::env::remove_var("URL_ALIASES");
+    unsafe { std::env::remove_var("URL_ALIASES") };
     let map = cfg.url_aliases.clone().unwrap();
     assert_eq!(map.len(), 1);
     assert!(map.contains_key("valid"));
@@ -556,14 +578,16 @@ mod tests {
   #[test]
   fn test_url_aliases_skips_non_http_base() {
     let _guard = ENV_LOCK.lock().unwrap();
-    std::env::set_var("PORT", "8080");
-    std::env::set_var("APP_ENV", "development");
-    std::env::set_var(
-      "URL_ALIASES",
-      "bad=file:///etc/passwd,ok=https://img.example.com",
-    );
+    unsafe {
+      std::env::set_var("PORT", "8080");
+      std::env::set_var("APP_ENV", "development");
+      std::env::set_var(
+        "URL_ALIASES",
+        "bad=file:///etc/passwd,ok=https://img.example.com",
+      );
+    }
     let cfg = super::Configuration::new();
-    std::env::remove_var("URL_ALIASES");
+    unsafe { std::env::remove_var("URL_ALIASES") };
     let map = cfg.url_aliases.clone().unwrap();
     assert_eq!(map.len(), 1);
     assert!(map.contains_key("ok"));
@@ -572,25 +596,29 @@ mod tests {
   #[test]
   fn test_url_aliases_all_invalid_is_none() {
     let _guard = ENV_LOCK.lock().unwrap();
-    std::env::set_var("PORT", "8080");
-    std::env::set_var("APP_ENV", "development");
-    std::env::set_var("URL_ALIASES", "bad=file:///etc/passwd");
+    unsafe {
+      std::env::set_var("PORT", "8080");
+      std::env::set_var("APP_ENV", "development");
+      std::env::set_var("URL_ALIASES", "bad=file:///etc/passwd");
+    }
     let cfg = super::Configuration::new();
-    std::env::remove_var("URL_ALIASES");
+    unsafe { std::env::remove_var("URL_ALIASES") };
     assert!(cfg.url_aliases.is_none());
   }
 
   #[test]
   fn test_input_disallow_parses_all_tokens() {
     let _guard = ENV_LOCK.lock().unwrap();
-    std::env::set_var("PORT", "8080");
-    std::env::set_var("APP_ENV", "development");
-    std::env::set_var(
-      "INPUT_DISALLOW_LIST",
-      "jpeg,png,gif,webp,avif,jxl,bmp,tiff,pdf,psd,video",
-    );
+    unsafe {
+      std::env::set_var("PORT", "8080");
+      std::env::set_var("APP_ENV", "development");
+      std::env::set_var(
+        "INPUT_DISALLOW_LIST",
+        "jpeg,png,gif,webp,avif,jxl,bmp,tiff,pdf,psd,video",
+      );
+    }
     let cfg = super::Configuration::new();
-    std::env::remove_var("INPUT_DISALLOW_LIST");
+    unsafe { std::env::remove_var("INPUT_DISALLOW_LIST") };
     assert_eq!(cfg.input_disallow.len(), 11);
   }
 }

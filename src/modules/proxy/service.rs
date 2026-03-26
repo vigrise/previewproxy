@@ -1,16 +1,16 @@
 use crate::common::errors::ProxyError;
+use crate::modules::AppState;
 use crate::modules::cache::manager::{CacheHit, CacheManager};
 use crate::modules::cache::memory::CacheEntry;
 use crate::modules::proxy::{
-  dto::{params::TransformParams, ProcessResult},
+  dto::{ProcessResult, params::TransformParams},
   fetchable::Fetchable,
 };
 use crate::modules::security::{allowlist::Allowlist, hmac};
 use crate::modules::transform::pipeline::{self, resolve_content_type};
-use crate::modules::AppState;
 use bytes::Bytes;
 use std::sync::Arc;
-use tokio::sync::{mpsc, OwnedSemaphorePermit};
+use tokio::sync::{OwnedSemaphorePermit, mpsc};
 use url::Url;
 
 /// Per-request service that orchestrates allowlist checks, HMAC verification,
@@ -80,15 +80,16 @@ impl ProxyService {
 
     // 2. Allowlist check for watermark URL host (HTTP/HTTPS only)
     if let Some(wm_url) = &params.wm
-      && (wm_url.starts_with("http://") || wm_url.starts_with("https://")) {
-        let wm_host = Url::parse(wm_url)
-          .ok()
-          .and_then(|u| u.host_str().map(|h| h.to_string()))
-          .unwrap_or_default();
-        if !self.allowlist.is_allowed(&wm_host) {
-          return Err(ProxyError::HostNotAllowed);
-        }
+      && (wm_url.starts_with("http://") || wm_url.starts_with("https://"))
+    {
+      let wm_host = Url::parse(wm_url)
+        .ok()
+        .and_then(|u| u.host_str().map(|h| h.to_string()))
+        .unwrap_or_default();
+      if !self.allowlist.is_allowed(&wm_host) {
+        return Err(ProxyError::HostNotAllowed);
       }
+    }
 
     // 3. Compute canonical once (Issue 3 fix)
     let canonical = params.canonical_string(&image_url);
@@ -98,7 +99,7 @@ impl ProxyService {
       match &params.sig {
         None => return Err(ProxyError::InvalidSignature),
         Some(sig) if !hmac::verify(key, &canonical, sig) => {
-          return Err(ProxyError::InvalidSignature)
+          return Err(ProxyError::InvalidSignature);
         }
         _ => {}
       }
@@ -114,9 +115,10 @@ impl ProxyService {
 
     // 6. Singleflight: check if already inflight, or start one
     if self.cache.inflight().is_inflight(&prelim_key)
-      && let Some(result) = self.cache.inflight().wait(&prelim_key).await {
-        return result.map(|entry| ProcessResult::Cached(entry, CacheHit::Miss));
-      }
+      && let Some(result) = self.cache.inflight().wait(&prelim_key).await
+    {
+      return result.map(|entry| ProcessResult::Cached(entry, CacheHit::Miss));
+    }
     let guard = self.cache.inflight().start(prelim_key.clone());
 
     // --- Streaming path: HTTP source, no transforms ---
@@ -297,10 +299,11 @@ impl ProxyService {
     // Magic-byte-only sources (e.g. S3 objects without a content-type header) bypass
     // INPUT_DISALLOW_LIST. This is a known limitation.
     if let Some(ref ct) = src_ct
-      && let Err(e) = self.check_input_disallow(ct) {
-        guard.complete(Err(e.clone()));
-        return Err(e);
-      }
+      && let Err(e) = self.check_input_disallow(ct)
+    {
+      guard.complete(Err(e.clone()));
+      return Err(e);
+    }
 
     // 9. Force pipeline for PDF to rasterize first page even without transform flags.
     let is_pdf =
@@ -366,10 +369,11 @@ impl ProxyService {
       _ => None,
     };
     if let Some(t) = token
-      && self.input_disallow.contains(&t) {
-        let name = format!("{t:?}").to_lowercase();
-        return Err(ProxyError::TransformDisabled(name));
-      }
+      && self.input_disallow.contains(&t)
+    {
+      let name = format!("{t:?}").to_lowercase();
+      return Err(ProxyError::TransformDisabled(name));
+    }
     Ok(())
   }
 }
@@ -627,7 +631,7 @@ mod streaming_tests {
   use futures::StreamExt;
   use std::sync::Arc;
   use tokio::sync::Semaphore;
-  use wiremock::{matchers::method, Mock, MockServer, ResponseTemplate};
+  use wiremock::{Mock, MockServer, ResponseTemplate, matchers::method};
 
   fn make_svc(max_bytes: u64) -> (ProxyService, Arc<CacheManager>) {
     let cfg = Arc::new(crate::common::config::Configuration {

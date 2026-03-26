@@ -1,5 +1,5 @@
 use crate::common::errors::ProxyError;
-use image::{imageops::FilterType, DynamicImage};
+use image::{DynamicImage, imageops::FilterType};
 
 pub fn resize(
   img: DynamicImage,

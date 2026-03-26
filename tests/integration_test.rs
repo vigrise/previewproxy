@@ -6,7 +6,7 @@ static ENV_MUTEX: Mutex<()> = Mutex::new(());
 
 fn tiny_png() -> Vec<u8> {
   // 1x1 pixel PNG - properly encoded, decodeable by the image crate
-  use base64::{engine::general_purpose::STANDARD, Engine};
+  use base64::{Engine, engine::general_purpose::STANDARD};
   STANDARD
     .decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC")
     .unwrap()
@@ -51,7 +51,7 @@ async fn test_health_returns_ok() {
 
 #[tokio::test]
 async fn test_proxy_query_style_cache_miss() {
-  use wiremock::{matchers::method, Mock, MockServer, ResponseTemplate};
+  use wiremock::{Mock, MockServer, ResponseTemplate, matchers::method};
   let mock_server = MockServer::start().await;
   Mock::given(method("GET"))
     .respond_with(

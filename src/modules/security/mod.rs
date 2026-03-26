@@ -1,4 +1,4 @@
 pub mod allowlist;
 pub mod hmac;
 
-pub use allowlist::{is_private_ip, Allowlist};
+pub use allowlist::{Allowlist, is_private_ip};

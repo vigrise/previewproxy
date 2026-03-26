@@ -1,5 +1,5 @@
 use crate::common::errors::ProxyError;
-use image::{imageops, DynamicImage};
+use image::{DynamicImage, imageops};
 
 pub fn to_grayscale(img: DynamicImage) -> Result<DynamicImage, ProxyError> {
   Ok(img.grayscale())

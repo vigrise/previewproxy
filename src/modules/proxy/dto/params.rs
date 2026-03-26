@@ -270,29 +270,33 @@ fn parse_options(opts: &str) -> Result<TransformParams, ProxyError> {
     }
     // WxH
     if let Some((w_str, h_str)) = token.split_once('x')
-      && let (Ok(w), Ok(h)) = (w_str.parse::<u32>(), h_str.parse::<u32>()) {
-        p.w = Some(w);
-        p.h = Some(h);
-        continue;
-      }
+      && let (Ok(w), Ok(h)) = (w_str.parse::<u32>(), h_str.parse::<u32>())
+    {
+      p.w = Some(w);
+      p.h = Some(h);
+      continue;
+    }
     // q80
     if let Some(rest) = token.strip_prefix('q')
-      && let Ok(v) = rest.parse::<u32>() {
-        p.q = Some(v);
-        continue;
-      }
+      && let Ok(v) = rest.parse::<u32>()
+    {
+      p.q = Some(v);
+      continue;
+    }
     // r90 r180 r270
     if let Some(rest) = token.strip_prefix('r')
-      && let Ok(v) = rest.parse::<u32>() {
-        p.rotate = Some(v);
-        continue;
-      }
+      && let Ok(v) = rest.parse::<u32>()
+    {
+      p.rotate = Some(v);
+      continue;
+    }
     // blur:5
     if let Some(val) = token.strip_prefix("blur:")
-      && let Ok(v) = val.parse::<f32>() {
-        p.blur = Some(v);
-        continue;
-      }
+      && let Ok(v) = val.parse::<f32>()
+    {
+      p.blur = Some(v);
+      continue;
+    }
     // seek:5.0 / seek:0.5r / seek:auto
     if let Some(val) = token.strip_prefix("seek:") {
       if val == "auto" {
@@ -300,10 +304,11 @@ fn parse_options(opts: &str) -> Result<TransformParams, ProxyError> {
         continue;
       }
       if let Some(rel) = val.strip_suffix('r')
-        && let Ok(v) = rel.parse::<f32>() {
-          p.seek = Some(SeekMode::Relative(v.clamp(0.0, 1.0)));
-          continue;
-        }
+        && let Ok(v) = rel.parse::<f32>()
+      {
+        p.seek = Some(SeekMode::Relative(v.clamp(0.0, 1.0)));
+        continue;
+      }
       if let Ok(v) = val.parse::<f32>() {
         p.seek = Some(SeekMode::Absolute(v.max(0.0)));
         continue;
@@ -311,16 +316,18 @@ fn parse_options(opts: &str) -> Result<TransformParams, ProxyError> {
     }
     // bright:10
     if let Some(val) = token.strip_prefix("bright:")
-      && let Ok(v) = val.parse::<i32>() {
-        p.bright = Some(v);
-        continue;
-      }
+      && let Ok(v) = val.parse::<i32>()
+    {
+      p.bright = Some(v);
+      continue;
+    }
     // contrast:5
     if let Some(val) = token.strip_prefix("contrast:")
-      && let Ok(v) = val.parse::<i32>() {
-        p.contrast = Some(v);
-        continue;
-      }
+      && let Ok(v) = val.parse::<i32>()
+    {
+      p.contrast = Some(v);
+      continue;
+    }
     // wm:https://...
     if let Some(val) = token.strip_prefix("wm:") {
       p.wm = Some(val.to_string());
@@ -410,7 +417,7 @@ pub fn from_query(
       _ => {
         return Err(ProxyError::InvalidParams(format!(
           "invalid format: {format}"
-        )))
+        )));
       }
     }
   }

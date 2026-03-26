@@ -1,10 +1,10 @@
-use crate::common::{config::telemetry, config::Config, config::Environment, middlewares};
+use crate::common::{config::Config, config::Environment, config::telemetry, middlewares};
+use crate::modules::AppState;
 use crate::modules::cache::manager::CacheManager;
 use crate::modules::proxy::fetchable::Fetchable;
 use crate::modules::proxy::sources::http::HttpFetcher;
 use crate::modules::proxy::sources::{AliasSource, LocalSource, S3Source, SourceRouter};
 use crate::modules::security::allowlist::Allowlist;
-use crate::modules::AppState;
 use axum::Router;
 use std::sync::Arc;
 use tokio::sync::Semaphore;

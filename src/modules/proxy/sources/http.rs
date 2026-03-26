@@ -1,6 +1,6 @@
 use crate::common::errors::ProxyError;
 use crate::modules::proxy::fetchable::Fetchable;
-use crate::modules::security::allowlist::{is_private_ip, Allowlist};
+use crate::modules::security::allowlist::{Allowlist, is_private_ip};
 use futures::StreamExt;
 use reqwest::Client;
 use std::{sync::Arc, time::Duration};
@@ -180,7 +180,7 @@ mod tests {
   use super::*;
   use crate::modules::security::allowlist::Allowlist;
   use std::sync::Arc;
-  use wiremock::{matchers::method, Mock, MockServer, ResponseTemplate};
+  use wiremock::{Mock, MockServer, ResponseTemplate, matchers::method};
 
   fn open_fetcher() -> HttpFetcher {
     HttpFetcher::new(10, 1_000_000, Arc::new(Allowlist::new(vec![]))).with_private_ip_check(false)

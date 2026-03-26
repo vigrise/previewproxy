@@ -1,7 +1,7 @@
-use axum::{extract::State, Json};
+use axum::{Json, extract::State};
 
-use crate::modules::health::{dto::HealthResponse, service};
 use crate::modules::AppState;
+use crate::modules::health::{dto::HealthResponse, service};
 
 pub async fn index(State(state): State<AppState>) -> Json<HealthResponse> {
   let result = service::index(
