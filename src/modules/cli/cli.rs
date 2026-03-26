@@ -5,6 +5,10 @@ use clap::Parser;
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
 pub struct Cli {
+  /// Path to a .env file to load (overrides default .env lookup)
+  #[arg(long, value_name = "PATH", global = true)]
+  pub env_file: Option<String>,
+
   /// Server port [env: PORT]
   #[arg(short, long, env = "PORT", default_value = "8080")]
   pub port: u16,

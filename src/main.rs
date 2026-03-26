@@ -2,7 +2,23 @@ use clap::Parser;
 use previewproxy::modules::cli::{Cli, Commands};
 
 fn main() {
-  dotenvy::dotenv().ok();
+  // Load --env-file before full CLI parse so env vars are available to clap
+  let args: Vec<String> = std::env::args().collect();
+  let env_file = args
+    .windows(2)
+    .find(|w| w[0] == "--env-file")
+    .map(|w| w[1].as_str())
+    .or_else(|| args.iter().find_map(|a| a.strip_prefix("--env-file=")));
+
+  if let Some(path) = env_file {
+    dotenvy::from_filename(path).unwrap_or_else(|e| {
+      eprintln!("error loading env file '{path}': {e}");
+      std::process::exit(1);
+    });
+  } else {
+    dotenvy::dotenv().ok();
+  }
+
   let cli = Cli::parse();
   cli.apply_to_env();
 
