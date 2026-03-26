@@ -395,9 +395,113 @@ fn parse_options(opts: &str) -> Result<TransformParams, ProxyError> {
         p.grayscale = Some(true);
       }
       _ => {
-        return Err(ProxyError::InvalidParams(format!(
-          "Unknown option: {token}"
-        )));
+        // Try key=value or key:value syntax (= takes priority over :)
+        let sep_pos = token
+          .find('=')
+          .or_else(|| token.find(':').filter(|_| token.contains(':')));
+        let Some(sep) = sep_pos else {
+          return Err(ProxyError::InvalidParams(format!(
+            "Unknown option: {token}"
+          )));
+        };
+        let key = &token[..sep];
+        let val = &token[sep + 1..];
+        match key {
+          "w" => {
+            p.w = Some(
+              val
+                .parse::<u32>()
+                .map_err(|_| ProxyError::InvalidParams("invalid w".to_string()))?,
+            )
+          }
+          "h" => {
+            p.h = Some(
+              val
+                .parse::<u32>()
+                .map_err(|_| ProxyError::InvalidParams("invalid h".to_string()))?,
+            )
+          }
+          "q" => {
+            p.q = Some(
+              val
+                .parse::<u32>()
+                .map_err(|_| ProxyError::InvalidParams("invalid q".to_string()))?,
+            )
+          }
+          "r" | "rotate" => {
+            p.rotate = Some(
+              val
+                .parse::<u32>()
+                .map_err(|_| ProxyError::InvalidParams("invalid rotate".to_string()))?,
+            )
+          }
+          "fit" => match val {
+            "contain" | "cover" | "crop" => p.fit = Some(val.to_string()),
+            _ => {
+              return Err(ProxyError::InvalidParams(format!("invalid fit: {val}")));
+            }
+          },
+          "format" => match val {
+            "jpeg" | "png" | "webp" | "avif" | "gif" | "bmp" | "tiff" | "ico" | "jxl" => {
+              p.format = Some(val.to_string())
+            }
+            _ => {
+              return Err(ProxyError::InvalidParams(format!("invalid format: {val}")));
+            }
+          },
+          "flip" => match val {
+            "h" | "v" => p.flip = Some(val.to_string()),
+            _ => {
+              return Err(ProxyError::InvalidParams(format!("invalid flip: {val}")));
+            }
+          },
+          "grayscale" => p.grayscale = Some(val == "1" || val.eq_ignore_ascii_case("true")),
+          "blur" => {
+            p.blur = Some(
+              val
+                .parse::<f32>()
+                .map_err(|_| ProxyError::InvalidParams("invalid blur".to_string()))?,
+            )
+          }
+          "bright" => {
+            p.bright = Some(
+              val
+                .parse::<i32>()
+                .map_err(|_| ProxyError::InvalidParams("invalid bright".to_string()))?,
+            )
+          }
+          "contrast" => {
+            p.contrast = Some(
+              val
+                .parse::<i32>()
+                .map_err(|_| ProxyError::InvalidParams("invalid contrast".to_string()))?,
+            )
+          }
+          "seek" => {
+            if val == "auto" {
+              p.seek = Some(SeekMode::Auto);
+            } else if let Some(rel) = val.strip_suffix('r') {
+              let ratio = rel
+                .parse::<f32>()
+                .map_err(|_| ProxyError::InvalidParams("invalid seek".to_string()))?;
+              p.seek = Some(SeekMode::Relative(ratio.clamp(0.0, 1.0)));
+            } else {
+              let secs = val
+                .parse::<f32>()
+                .map_err(|_| ProxyError::InvalidParams("invalid seek".to_string()))?;
+              p.seek = Some(SeekMode::Absolute(secs.max(0.0)));
+            }
+          }
+          "wm" => p.wm = Some(val.to_string()),
+          "sig" => p.sig = Some(val.to_string()),
+          "gif_anim" => p.gif_anim = Some(parse_gif_anim_value(val)?),
+          "gif_af" => p.gif_af = Some(val == "1" || val.eq_ignore_ascii_case("true")),
+          _ => {
+            return Err(ProxyError::InvalidParams(format!(
+              "Unknown option: {token}"
+            )));
+          }
+        }
       }
     }
   }
@@ -1057,5 +1161,327 @@ mod tests {
     base.merge_from(other);
     assert!(matches!(base.gif_anim, Some(GifAnimRange::From(2))));
     assert_eq!(base.gif_af, Some(true));
+  }
+
+  // --- Path key=value and key:value syntax tests (RED phase) ---
+
+  #[test]
+  fn path_w_equals_syntax() {
+    let (p, _) = TransformParams::from_path("w=32/https://example.com/img.jpg").unwrap();
+    assert_eq!(p.w, Some(32));
+  }
+
+  #[test]
+  fn path_h_equals_syntax() {
+    let (p, _) = TransformParams::from_path("h=32/https://example.com/img.jpg").unwrap();
+    assert_eq!(p.h, Some(32));
+  }
+
+  #[test]
+  fn path_w_colon_syntax() {
+    let (p, _) = TransformParams::from_path("w:32/https://example.com/img.jpg").unwrap();
+    assert_eq!(p.w, Some(32));
+  }
+
+  #[test]
+  fn path_h_colon_syntax() {
+    let (p, _) = TransformParams::from_path("h:32/https://example.com/img.jpg").unwrap();
+    assert_eq!(p.h, Some(32));
+  }
+
+  #[test]
+  fn path_q_equals_syntax() {
+    let (p, _) = TransformParams::from_path("q=80/https://example.com/img.jpg").unwrap();
+    assert_eq!(p.q, Some(80));
+  }
+
+  #[test]
+  fn path_r_equals_syntax() {
+    let (p, _) = TransformParams::from_path("r=90/https://example.com/img.jpg").unwrap();
+    assert_eq!(p.rotate, Some(90));
+  }
+
+  #[test]
+  fn path_r_colon_syntax() {
+    let (p, _) = TransformParams::from_path("r:90/https://example.com/img.jpg").unwrap();
+    assert_eq!(p.rotate, Some(90));
+  }
+
+  #[test]
+  fn path_rotate_equals_syntax() {
+    let (p, _) = TransformParams::from_path("rotate=90/https://example.com/img.jpg").unwrap();
+    assert_eq!(p.rotate, Some(90));
+  }
+
+  #[test]
+  fn path_rotate_colon_syntax() {
+    let (p, _) = TransformParams::from_path("rotate:90/https://example.com/img.jpg").unwrap();
+    assert_eq!(p.rotate, Some(90));
+  }
+
+  #[test]
+  fn path_fit_equals_syntax() {
+    let (p, _) = TransformParams::from_path("fit=cover/https://example.com/img.jpg").unwrap();
+    assert_eq!(p.fit, Some("cover".to_string()));
+  }
+
+  #[test]
+  fn path_fit_colon_syntax() {
+    let (p, _) = TransformParams::from_path("fit:cover/https://example.com/img.jpg").unwrap();
+    assert_eq!(p.fit, Some("cover".to_string()));
+  }
+
+  #[test]
+  fn path_format_equals_syntax() {
+    let (p, _) = TransformParams::from_path("format=webp/https://example.com/img.jpg").unwrap();
+    assert_eq!(p.format, Some("webp".to_string()));
+  }
+
+  #[test]
+  fn path_format_colon_syntax() {
+    let (p, _) = TransformParams::from_path("format:webp/https://example.com/img.jpg").unwrap();
+    assert_eq!(p.format, Some("webp".to_string()));
+  }
+
+  #[test]
+  fn path_flip_equals_syntax() {
+    let (p, _) = TransformParams::from_path("flip=h/https://example.com/img.jpg").unwrap();
+    assert_eq!(p.flip, Some("h".to_string()));
+  }
+
+  #[test]
+  fn path_flip_colon_syntax() {
+    let (p, _) = TransformParams::from_path("flip:h/https://example.com/img.jpg").unwrap();
+    assert_eq!(p.flip, Some("h".to_string()));
+  }
+
+  #[test]
+  fn path_grayscale_equals_syntax() {
+    let (p, _) = TransformParams::from_path("grayscale=1/https://example.com/img.jpg").unwrap();
+    assert_eq!(p.grayscale, Some(true));
+  }
+
+  #[test]
+  fn path_grayscale_colon_syntax() {
+    let (p, _) = TransformParams::from_path("grayscale:1/https://example.com/img.jpg").unwrap();
+    assert_eq!(p.grayscale, Some(true));
+  }
+
+  #[test]
+  fn path_blur_equals_syntax() {
+    let (p, _) = TransformParams::from_path("blur=3.5/https://example.com/img.jpg").unwrap();
+    assert_eq!(p.blur, Some(3.5));
+  }
+
+  #[test]
+  fn path_bright_equals_syntax() {
+    let (p, _) = TransformParams::from_path("bright=10/https://example.com/img.jpg").unwrap();
+    assert_eq!(p.bright, Some(10));
+  }
+
+  #[test]
+  fn path_contrast_equals_syntax() {
+    let (p, _) = TransformParams::from_path("contrast=-5/https://example.com/img.jpg").unwrap();
+    assert_eq!(p.contrast, Some(-5));
+  }
+
+  #[test]
+  fn path_seek_equals_syntax() {
+    let (p, _) = TransformParams::from_path("seek=5.0/https://example.com/v.mp4").unwrap();
+    assert_eq!(p.seek, Some(SeekMode::Absolute(5.0)));
+  }
+
+  #[test]
+  fn path_gif_anim_equals_syntax() {
+    let (p, _) = TransformParams::from_path("gif_anim=2/https://example.com/a.gif").unwrap();
+    assert!(matches!(p.gif_anim, Some(GifAnimRange::From(2))));
+  }
+
+  #[test]
+  fn path_gif_af_equals_syntax() {
+    let (p, _) = TransformParams::from_path("gif_af=1/https://example.com/a.gif").unwrap();
+    assert_eq!(p.gif_af, Some(true));
+  }
+
+  #[test]
+  fn path_wm_equals_syntax() {
+    let (p, _) =
+      TransformParams::from_path("wm=https://logo.png/https://example.com/img.jpg").unwrap();
+    assert_eq!(p.wm, Some("https://logo.png".to_string()));
+  }
+
+  #[test]
+  fn path_sig_equals_syntax() {
+    let (p, _) = TransformParams::from_path("sig=abc123/https://example.com/img.jpg").unwrap();
+    assert_eq!(p.sig, Some("abc123".to_string()));
+  }
+
+  // --- Path-style vs query-style parity tests ---
+  // Each test verifies that equivalent path and query inputs produce the same TransformParams.
+
+  fn q(pairs: &[(&str, &str)]) -> TransformParams {
+    let map: std::collections::HashMap<String, String> = pairs
+      .iter()
+      .map(|(k, v)| (k.to_string(), v.to_string()))
+      .collect();
+    super::from_query(&map).unwrap()
+  }
+
+  fn p(path: &str) -> TransformParams {
+    TransformParams::from_path(path).unwrap().0
+  }
+
+  #[test]
+  fn parity_dimensions() {
+    let path = p("300x200/https://example.com/img.jpg");
+    let query = q(&[("w", "300"), ("h", "200")]);
+    assert_eq!(path.w, query.w);
+    assert_eq!(path.h, query.h);
+  }
+
+  #[test]
+  fn parity_quality() {
+    let path = p("q80/https://example.com/img.jpg");
+    let query = q(&[("q", "80")]);
+    assert_eq!(path.q, query.q);
+  }
+
+  #[test]
+  fn parity_rotate() {
+    let path = p("r90/https://example.com/img.jpg");
+    let query = q(&[("rotate", "90")]);
+    assert_eq!(path.rotate, query.rotate);
+  }
+
+  #[test]
+  fn parity_blur() {
+    let path = p("blur:3.5/https://example.com/img.jpg");
+    let query = q(&[("blur", "3.5")]);
+    assert_eq!(path.blur, query.blur);
+  }
+
+  #[test]
+  fn parity_bright() {
+    let path = p("bright:10/https://example.com/img.jpg");
+    let query = q(&[("bright", "10")]);
+    assert_eq!(path.bright, query.bright);
+  }
+
+  #[test]
+  fn parity_contrast() {
+    let path = p("contrast:-5/https://example.com/img.jpg");
+    let query = q(&[("contrast", "-5")]);
+    assert_eq!(path.contrast, query.contrast);
+  }
+
+  #[test]
+  fn parity_fliph() {
+    let path = p("fliph/https://example.com/img.jpg");
+    let query = q(&[("flip", "h")]);
+    assert_eq!(path.flip, query.flip);
+  }
+
+  #[test]
+  fn parity_flipv() {
+    let path = p("flipv/https://example.com/img.jpg");
+    let query = q(&[("flip", "v")]);
+    assert_eq!(path.flip, query.flip);
+  }
+
+  #[test]
+  fn parity_grayscale() {
+    let path = p("grayscale/https://example.com/img.jpg");
+    let query = q(&[("grayscale", "1")]);
+    assert_eq!(path.grayscale, query.grayscale);
+  }
+
+  #[test]
+  fn parity_fit() {
+    for fit in ["contain", "cover", "crop"] {
+      let path = p(&format!("{fit}/https://example.com/img.jpg"));
+      let query = q(&[("fit", fit)]);
+      assert_eq!(path.fit, query.fit, "fit={fit}");
+    }
+  }
+
+  #[test]
+  fn parity_format() {
+    for fmt in [
+      "webp", "jpeg", "png", "avif", "gif", "bmp", "tiff", "ico", "jxl",
+    ] {
+      let path = p(&format!("{fmt}/https://example.com/img.jpg"));
+      let query = q(&[("format", fmt)]);
+      assert_eq!(path.format, query.format, "format={fmt}");
+    }
+  }
+
+  #[test]
+  fn parity_seek_absolute() {
+    let path = p("seek:5.0/https://example.com/v.mp4");
+    let query = q(&[("seek", "5.0")]);
+    assert_eq!(path.seek, query.seek);
+  }
+
+  #[test]
+  fn parity_seek_relative() {
+    let path = p("seek:0.5r/https://example.com/v.mp4");
+    let query = q(&[("seek", "0.5r")]);
+    assert_eq!(path.seek, query.seek);
+  }
+
+  #[test]
+  fn parity_seek_auto() {
+    let path = p("seek:auto/https://example.com/v.mp4");
+    let query = q(&[("seek", "auto")]);
+    assert_eq!(path.seek, query.seek);
+  }
+
+  #[test]
+  fn parity_gif_anim_all() {
+    let path = p("gif_anim/https://example.com/a.gif");
+    let query = q(&[("gif_anim", "all")]);
+    assert_eq!(path.gif_anim, query.gif_anim);
+  }
+
+  #[test]
+  fn parity_gif_anim_from() {
+    let path = p("gif_anim:2/https://example.com/a.gif");
+    let query = q(&[("gif_anim", "2")]);
+    assert_eq!(path.gif_anim, query.gif_anim);
+  }
+
+  #[test]
+  fn parity_gif_anim_range() {
+    let path = p("gif_anim:1-5/https://example.com/a.gif");
+    let query = q(&[("gif_anim", "1-5")]);
+    assert_eq!(path.gif_anim, query.gif_anim);
+  }
+
+  #[test]
+  fn parity_gif_anim_last() {
+    let path = p("gif_anim:-3/https://example.com/a.gif");
+    let query = q(&[("gif_anim", "-3")]);
+    assert_eq!(path.gif_anim, query.gif_anim);
+  }
+
+  #[test]
+  fn parity_gif_af() {
+    let path = p("gif_af/https://example.com/a.gif");
+    let query = q(&[("gif_af", "1")]);
+    assert_eq!(path.gif_af, query.gif_af);
+  }
+
+  #[test]
+  fn parity_wm() {
+    let path = p("wm:https://logo.png/https://example.com/img.jpg");
+    let query = q(&[("wm", "https://logo.png")]);
+    assert_eq!(path.wm, query.wm);
+  }
+
+  #[test]
+  fn parity_sig() {
+    let path = p("sig:abc123/https://example.com/img.jpg");
+    let query = q(&[("sig", "abc123")]);
+    assert_eq!(path.sig, query.sig);
   }
 }
