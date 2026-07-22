@@ -16,7 +16,7 @@ impl OriginCache {
   }
 
   fn url_key(url: &str) -> String {
-    format!("{:x}", Sha256::digest(url.as_bytes()))
+    hex::encode(Sha256::digest(url.as_bytes()))
   }
 
   pub async fn get(&self, url: &str) -> Option<CacheEntry> {

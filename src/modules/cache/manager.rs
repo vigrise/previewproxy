@@ -55,7 +55,7 @@ impl CacheManager {
   }
 
   pub fn preliminary_key(canonical: &str) -> String {
-    let key = format!("{:x}", Sha256::digest(canonical.as_bytes()));
+    let key = hex::encode(Sha256::digest(canonical.as_bytes()));
     debug!(key = %key, "computed preliminary cache key");
     key
   }

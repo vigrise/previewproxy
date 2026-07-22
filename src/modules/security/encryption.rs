@@ -1,6 +1,6 @@
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
-use cbc::cipher::{BlockDecryptMut, BlockEncryptMut, KeyIvInit, block_padding::Pkcs7};
-use hmac::{Hmac, Mac};
+use cbc::cipher::{BlockModeDecrypt, BlockModeEncrypt, KeyIvInit, block_padding::Pkcs7};
+use hmac::{Hmac, KeyInit, Mac};
 use sha2::Sha256;
 use thiserror::Error;
 use tracing::debug;
@@ -39,13 +39,13 @@ fn aes_encrypt(key: &[u8], iv: &[u8; 16], data: &[u8]) -> Vec<u8> {
   match key.len() {
     16 => cbc::Encryptor::<aes::Aes128>::new_from_slices(key, iv)
       .expect("key/iv lengths validated")
-      .encrypt_padded_vec_mut::<Pkcs7>(data),
+      .encrypt_padded_vec::<Pkcs7>(data),
     24 => cbc::Encryptor::<aes::Aes192>::new_from_slices(key, iv)
       .expect("key/iv lengths validated")
-      .encrypt_padded_vec_mut::<Pkcs7>(data),
+      .encrypt_padded_vec::<Pkcs7>(data),
     32 => cbc::Encryptor::<aes::Aes256>::new_from_slices(key, iv)
       .expect("key/iv lengths validated")
-      .encrypt_padded_vec_mut::<Pkcs7>(data),
+      .encrypt_padded_vec::<Pkcs7>(data),
     _ => unreachable!(),
   }
 }
@@ -54,13 +54,13 @@ fn aes_decrypt(key: &[u8], iv: &[u8; 16], data: &[u8]) -> Result<Vec<u8>, Encryp
   match key.len() {
     16 => cbc::Decryptor::<aes::Aes128>::new_from_slices(key, iv)
       .expect("key/iv lengths validated")
-      .decrypt_padded_vec_mut::<Pkcs7>(data),
+      .decrypt_padded_vec::<Pkcs7>(data),
     24 => cbc::Decryptor::<aes::Aes192>::new_from_slices(key, iv)
       .expect("key/iv lengths validated")
-      .decrypt_padded_vec_mut::<Pkcs7>(data),
+      .decrypt_padded_vec::<Pkcs7>(data),
     32 => cbc::Decryptor::<aes::Aes256>::new_from_slices(key, iv)
       .expect("key/iv lengths validated")
-      .decrypt_padded_vec_mut::<Pkcs7>(data),
+      .decrypt_padded_vec::<Pkcs7>(data),
     _ => unreachable!(),
   }
   .map_err(|_| EncryptionError::InvalidPadding)
